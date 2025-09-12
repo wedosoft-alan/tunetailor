@@ -25,10 +25,10 @@ export default function PlaylistGenerator({
   };
 
   const suggestionExamples = [
-    "Upbeat pop songs for morning workout",
-    "Chill indie music for studying",
-    "90s rock hits for road trip",
-    "Relaxing jazz for evening dinner"
+    "아침 운동에 좋은 신나는 팝 음악",
+    "공부할 때 듣는 차분한 인디 음악",
+    "드라이브를 위한 90년대 록 히트곡",
+    "저녁 식사 때 듣는 편안한 재즈"
   ];
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -45,10 +45,10 @@ export default function PlaylistGenerator({
           </div>
           <div>
             <CardTitle className="text-2xl font-display text-foreground" data-testid="title-generator">
-              Describe Your Perfect Playlist
+              완벽한 플레이리스트를 설명해주세요
             </CardTitle>
             <CardDescription className="text-base mt-2" data-testid="description-generator">
-              Tell us about your mood, favorite genres, activities, or any artists you love
+              현재 기분, 좋아하는 장르, 활동, 또는 선호하는 아티스트를 알려주세요
             </CardDescription>
           </div>
         </CardHeader>
@@ -56,7 +56,7 @@ export default function PlaylistGenerator({
         <CardContent className="space-y-6">
           <div className="space-y-3">
             <Textarea
-              placeholder="E.g., I want energetic pop and rock songs perfect for a morning jog, something that gets me pumped up like Dua Lipa and The Killers..."
+              placeholder="예시: 아침 조깅에 완벽한 신나는 팝과 록 음악을 원해요. 두아 리파나 더 킬러스 같이 기운이 나는 곡들로요..."
               value={preferences}
               onChange={(e) => setPreferences(e.target.value)}
               rows={4}
@@ -64,12 +64,12 @@ export default function PlaylistGenerator({
               data-testid="input-preferences"
             />
             <div className="text-xs text-muted-foreground text-right">
-              {preferences.length}/500 characters
+              {preferences.length}/500자
             </div>
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">Try these examples:</p>
+            <p className="text-sm font-medium text-foreground">이런 예시들을 참고해보세요:</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {suggestionExamples.map((suggestion, index) => (
                 <Button
@@ -97,19 +97,19 @@ export default function PlaylistGenerator({
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 mr-2 border-2 border-primary-foreground/20 border-t-primary-foreground rounded-full animate-spin" />
-                  Creating Your Playlist...
+                  플레이리스트 생성 중...
                 </>
               ) : (
                 <>
                   <Wand2 className="w-4 h-4 mr-2" />
-                  Generate Playlist
+                  플레이리스트 생성
                 </>
               )}
             </Button>
             
             {!isConnectedToSpotify && (
               <p className="text-xs text-muted-foreground text-center mt-2">
-                Connect your Spotify account to generate playlists
+                플레이리스트를 생성하려면 스포티파이 계정을 연결하세요
               </p>
             )}
           </div>

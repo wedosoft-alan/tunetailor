@@ -51,8 +51,8 @@ export default function PlaylistDisplay({
           <div className="space-y-4">
             <div className="w-16 h-16 mx-auto border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
             <div>
-              <h3 className="text-lg font-semibold text-foreground">Creating Your Playlist</h3>
-              <p className="text-muted-foreground">Finding the perfect tracks based on your taste...</p>
+              <h3 className="text-lg font-semibold text-foreground">플레이리스트 생성 중</h3>
+              <p className="text-muted-foreground">선호도에 맞는 완벽한 곡들을 찾는 중...</p>
             </div>
           </div>
         </CardContent>
@@ -107,13 +107,13 @@ export default function PlaylistDisplay({
                 )}
                 <div className="flex items-center gap-4 flex-wrap">
                   <Badge variant="secondary" className="text-xs" data-testid="badge-track-count">
-                    {playlist.tracks.length} tracks
+                    {playlist.tracks.length}곡
                   </Badge>
                   <Badge variant="secondary" className="text-xs" data-testid="badge-duration">
                     {formatTotalDuration(playlist.totalDuration)}
                   </Badge>
                   <Badge variant="outline" className="text-xs" data-testid="badge-created">
-                    Created {playlist.createdAt.toLocaleDateString()}
+                    생성일: {playlist.createdAt.toLocaleDateString('ko-KR')}
                   </Badge>
                 </div>
               </div>
@@ -128,7 +128,7 @@ export default function PlaylistDisplay({
                 data-testid="button-regenerate"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
-                Regenerate
+                다시 생성
               </Button>
               <Button
                 onClick={handleSave}
@@ -141,7 +141,7 @@ export default function PlaylistDisplay({
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Save
+                    저장
                   </>
                 )}
               </Button>
@@ -154,10 +154,10 @@ export default function PlaylistDisplay({
       <Card data-testid="card-track-list">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Tracks</CardTitle>
+            <CardTitle className="text-lg">트랙 목록</CardTitle>
             <Button variant="ghost" size="sm" data-testid="button-shuffle">
               <Shuffle className="w-4 h-4 mr-2" />
-              Shuffle
+              셔플
             </Button>
           </div>
         </CardHeader>

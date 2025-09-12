@@ -41,9 +41,9 @@ export default function Header({
             </div>
             <div>
               <h1 className="text-xl font-display font-bold text-foreground" data-testid="app-title">
-                Playlist Generator
+                플레이리스트 생성기
               </h1>
-              <p className="text-sm text-muted-foreground">Powered by AI & Spotify</p>
+              <p className="text-sm text-muted-foreground">AI와 스포티파이 기반</p>
             </div>
           </div>
 
@@ -58,7 +58,7 @@ export default function Header({
                 <div className={`w-2 h-2 rounded-full ${
                   isConnectedToSpotify ? 'bg-primary' : 'bg-muted-foreground'
                 }`} />
-                {isConnectedToSpotify ? 'Connected' : 'Disconnected'}
+                {isConnectedToSpotify ? '연결됨' : '연결 안됨'}
               </div>
               
               <Button 
@@ -67,7 +67,7 @@ export default function Header({
                 onClick={handleSpotifyAction}
                 data-testid="button-spotify-connect"
               >
-                {isConnectedToSpotify ? 'Disconnect' : 'Connect Spotify'}
+                {isConnectedToSpotify ? '연결 해제' : '스포티파이 연결'}
               </Button>
             </div>
 
