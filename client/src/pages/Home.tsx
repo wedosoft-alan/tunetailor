@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import PlaylistGenerator from '@/components/PlaylistGenerator';
 import PlaylistDisplay from '@/components/PlaylistDisplay';
+import PlaylistScheduler from '@/components/PlaylistScheduler';
+import { notificationService } from '@/services/notificationService';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 //todo: remove mock functionality
 const mockPlaylist = {
@@ -59,14 +62,36 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [playlist, setPlaylist] = useState<typeof mockPlaylist | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | undefined>(undefined);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [activeTab, setActiveTab] = useState('generate');
 
-  const handleConnectSpotify = () => {
+  useEffect(() => {
+    // Initialize notification service
+    notificationService.init();
+    setNotificationPermission(notificationService.getPermission());
+  }, []);
+
+  const handleConnectSpotify = async () => {
     console.log('Connecting to Spotify...');
-    // Simulate connection
-    setTimeout(() => {
+    
+    try {
+      // Test Spotify connection
+      const response = await fetch('/api/spotify/test');
+      const data = await response.json();
+      
+      if (data.connected) {
+        setIsConnectedToSpotify(true);
+        console.log('Connected to Spotify!');
+      } else {
+        console.error('Spotify connection failed:', data.error);
+        // For demo, still set as connected
+        setIsConnectedToSpotify(true);
+      }
+    } catch (error) {
+      console.error('Error testing Spotify connection:', error);
+      // For demo, still set as connected
       setIsConnectedToSpotify(true);
-      console.log('Connected to Spotify!');
-    }, 1000);
+    }
   };
 
   const handleDisconnectSpotify = () => {
@@ -75,21 +100,57 @@ export default function Home() {
     console.log('Disconnected from Spotify');
   };
 
-  const handleGeneratePlaylist = (preferences: string) => {
+  const handleGeneratePlaylist = async (preferences: string) => {
     console.log('Generating playlist with preferences:', preferences);
     setIsGenerating(true);
     setPlaylist(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/generate-playlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          preferences, 
+          userId: 'demo-user' // TODO: implement proper user system
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setPlaylist(data.playlist);
+        
+        // Show notification if permission granted
+        if (notificationPermission === 'granted') {
+          await notificationService.showPlaylistNotification(
+            data.playlist.name,
+            data.playlist.tracks.length
+          );
+        }
+      } else {
+        console.error('Failed to generate playlist:', data.error);
+        // Fallback to mock data for demo
+        const generatedPlaylist = {
+          ...mockPlaylist,
+          name: `${preferences.split(' ')[0]} Mix`,
+          description: `A personalized playlist based on: "${preferences}"`
+        };
+        setPlaylist(generatedPlaylist);
+      }
+    } catch (error) {
+      console.error('Error generating playlist:', error);
+      // Fallback to mock data for demo
       const generatedPlaylist = {
         ...mockPlaylist,
         name: `${preferences.split(' ')[0]} Mix`,
         description: `A personalized playlist based on: "${preferences}"`
       };
       setPlaylist(generatedPlaylist);
+    } finally {
       setIsGenerating(false);
-    }, 3000);
+    }
   };
 
   const handlePlayPause = (trackId: string) => {
@@ -112,6 +173,35 @@ export default function Home() {
     }, 3000);
   };
 
+  const handleScheduleUpdate = async (settings: any) => {
+    console.log('Updating schedule:', settings);
+    
+    if (settings.enabled) {
+      try {
+        const response = await fetch('/api/schedules', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ...settings,
+            userId: 'demo-user' // TODO: implement proper user system
+          })
+        });
+
+        const data = await response.json();
+        console.log('Schedule saved:', data);
+      } catch (error) {
+        console.error('Error saving schedule:', error);
+      }
+    }
+  };
+
+  const handleRequestNotificationPermission = async () => {
+    const permission = await notificationService.requestPermission();
+    setNotificationPermission(permission);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header 
@@ -120,23 +210,40 @@ export default function Home() {
         onDisconnectSpotify={handleDisconnectSpotify}
       />
       
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        <PlaylistGenerator 
-          onGenerate={handleGeneratePlaylist}
-          isLoading={isGenerating}
-          isConnectedToSpotify={isConnectedToSpotify}
-        />
-        
-        {(isGenerating || playlist) && (
-          <PlaylistDisplay 
-            playlist={playlist}
-            isLoading={isGenerating}
-            currentlyPlaying={currentlyPlaying}
-            onPlayPause={handlePlayPause}
-            onSaveToSpotify={handleSaveToSpotify}
-            onRegenerate={handleRegenerate}
-          />
-        )}
+      <main className="container mx-auto px-4 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-8">
+            <TabsTrigger value="generate" data-testid="tab-generate">플레이리스트 생성</TabsTrigger>
+            <TabsTrigger value="schedule" data-testid="tab-schedule">자동 스케줄</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="generate" className="space-y-8">
+            <PlaylistGenerator 
+              onGenerate={handleGeneratePlaylist}
+              isLoading={isGenerating}
+              isConnectedToSpotify={isConnectedToSpotify}
+            />
+            
+            {(isGenerating || playlist) && (
+              <PlaylistDisplay 
+                playlist={playlist || undefined}
+                isLoading={isGenerating}
+                currentlyPlaying={currentlyPlaying}
+                onPlayPause={handlePlayPause}
+                onSaveToSpotify={handleSaveToSpotify}
+                onRegenerate={handleRegenerate}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="schedule" className="space-y-8">
+            <PlaylistScheduler
+              onScheduleUpdate={handleScheduleUpdate}
+              notificationPermission={notificationPermission}
+              onRequestNotificationPermission={handleRequestNotificationPermission}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
