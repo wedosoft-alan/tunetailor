@@ -113,7 +113,7 @@ export default function PlaylistDisplay({
                     {formatTotalDuration(playlist.totalDuration)}
                   </Badge>
                   <Badge variant="outline" className="text-xs" data-testid="badge-created">
-                    생성일: {playlist.createdAt.toLocaleDateString('ko-KR')}
+                    생성일: {new Date(playlist.createdAt).toLocaleDateString('ko-KR')}
                   </Badge>
                 </div>
               </div>

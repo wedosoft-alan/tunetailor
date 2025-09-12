@@ -4,8 +4,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Configure OpenAI model - defaults to gpt-4o-mini for stability and cost efficiency
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 
 export interface PlaylistPreferences {
   genres: string[];
