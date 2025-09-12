@@ -4,6 +4,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Configure OpenAI model - defaults to gpt-4o-mini for stability and cost efficiency
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
 export interface PlaylistPreferences {
   genres: string[];
   mood: 'happy' | 'sad' | 'energetic' | 'calm' | 'party' | 'chill';
@@ -44,13 +47,14 @@ Examples:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: OPENAI_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
         temperature: 0.3,
-        max_tokens: 500
+        max_tokens: 500,
+        response_format: { type: "json_object" }
       });
 
       const response = completion.choices[0]?.message?.content;
@@ -66,7 +70,7 @@ Examples:
     }
   }
 
-  private fallbackAnalysis(userInput: string): PlaylistPreferences {
+  public fallbackAnalysis(userInput: string): PlaylistPreferences {
     const text = userInput.toLowerCase();
     
     // Basic genre detection
@@ -133,7 +137,7 @@ Examples:
 The name should be catchy and reflect the music style. Respond with just the playlist name, no quotes or extra text.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8,
         max_tokens: 50
@@ -157,7 +161,7 @@ The name should be catchy and reflect the music style. Respond with just the pla
 Keep it under 100 characters and make it appealing.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
         max_tokens: 100

@@ -51,9 +51,16 @@ export const insertGeneratedPlaylistSchema = createInsertSchema(generatedPlaylis
   createdAt: true,
 });
 
+// Request validation schemas
+export const generatePlaylistSchema = z.object({
+  preferences: z.string().min(1, "Preferences cannot be empty"),
+  userId: z.string().optional()
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
 export type GeneratedPlaylist = typeof generatedPlaylists.$inferSelect;
 export type InsertGeneratedPlaylist = z.infer<typeof insertGeneratedPlaylistSchema>;
+export type GeneratePlaylistRequest = z.infer<typeof generatePlaylistSchema>;
