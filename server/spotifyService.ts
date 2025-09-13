@@ -1,4 +1,4 @@
-import { getUncachableSpotifyClient } from './spotifyClient.js';
+import { getUncachableSpotifyClient } from './spotifyClient';
 
 export interface Track {
   id: string;
