@@ -97,8 +97,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
       album: `${preferences.mood && typeof preferences.mood === 'string' ? preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1) : 'Mixed'} Collection`,
       duration: Math.floor(Math.random() * 60) + 180, // 3-4 minutes
       imageUrl: 'https://images.unsplash.com/photo-1571974599782-87624638275a?w=300&h=300&fit=crop',
-      previewUrl: null,
-      spotifyUrl: null
+      previewUrl: undefined,
+      spotifyUrl: undefined
     });
   }
 
