@@ -44,7 +44,7 @@ export default function PlaylistGenerator({
             <Wand2 className="w-8 h-8 text-primary" data-testid="icon-generator" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-display text-foreground" data-testid="title-generator">듣고싶은  플레이리스트를 설명해주세요</CardTitle>
+            <CardTitle className="text-2xl font-display text-foreground" data-testid="title-generator">듣고싶은 플레이리스트를 설명해주세요</CardTitle>
             <CardDescription className="text-base mt-2" data-testid="description-generator">
               현재 기분, 좋아하는 장르, 활동, 또는 선호하는 아티스트를 알려주세요
             </CardDescription>
