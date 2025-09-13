@@ -4,8 +4,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+// Using stable OpenAI model for reliable Korean language support
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 export interface PlaylistPreferences {
   genres: string[];
@@ -46,19 +46,33 @@ Examples:
   "keywords": ["upbeat", "morning", "workout"]
 }`;
 
+      console.log('🤖 Calling OpenAI with model:', OPENAI_MODEL);
+      console.log('🔑 API Key exists:', !!process.env.OPENAI_API_KEY);
+      
       const completion = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        temperature: 0.3,
-        max_completion_tokens: 500,
+        max_completion_tokens: 1000,
         response_format: { type: "json_object" }
+      });
+
+      console.log('✅ OpenAI Response received:', {
+        id: completion.id,
+        model: completion.model,
+        choices_length: completion.choices?.length,
+        first_choice: completion.choices[0]?.message?.content ? '📝 Content exists' : '❌ No content'
       });
 
       const response = completion.choices[0]?.message?.content;
       if (!response) {
+        console.error('❌ Empty OpenAI response:', {
+          completion_id: completion.id,
+          choices: completion.choices,
+          usage: completion.usage
+        });
         throw new Error('No response from AI');
       }
 
@@ -129,18 +143,17 @@ Examples:
 
   async generatePlaylistName(preferences: PlaylistPreferences): Promise<string> {
     try {
-      const prompt = `Generate a creative playlist name for music with these preferences:
-- Genres: ${preferences.genres.join(', ')}
-- Mood: ${preferences.mood}
-- Keywords: ${preferences.keywords.join(', ')}
+      const prompt = `다음 음악 취향에 맞는 창의적인 한국어 플레이리스트 제목을 생성해주세요:
+- 장르: ${preferences.genres.join(', ')}
+- 분위기: ${preferences.mood}
+- 키워드: ${preferences.keywords.join(', ')}
 
-The name should be catchy and reflect the music style. Respond with just the playlist name, no quotes or extra text.`;
+감성적이고 매력적인 한국어 제목을 만들어주세요. 제목만 응답하고, 따옴표나 추가 텍스트는 없이 답변해주세요.`;
 
       const completion = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
-        max_completion_tokens: 50
+        max_completion_tokens: 150
       });
 
       return completion.choices[0]?.message?.content?.trim() || 'AI Generated Mix';
@@ -152,19 +165,18 @@ The name should be catchy and reflect the music style. Respond with just the pla
 
   async generatePlaylistDescription(preferences: PlaylistPreferences, trackCount: number): Promise<string> {
     try {
-      const prompt = `Write a brief, engaging description for a playlist with:
-- ${trackCount} tracks
-- Genres: ${preferences.genres.join(', ')}
-- Mood: ${preferences.mood}
-- Perfect for: ${preferences.activities?.join(', ') || 'listening'}
+      const prompt = `한국어로 플레이리스트 설명을 작성해주세요:
+- 총 ${trackCount}곡
+- 장르: ${preferences.genres.join(', ')}
+- 분위기: ${preferences.mood}
+- 용도: ${preferences.activities?.join(', ') || '듣기'}
 
-Keep it under 100 characters and make it appealing.`;
+100자 이내로 매력적이고 감성적인 한국어 설명을 작성해주세요. 반드시 한국어로만 응답하세요.`;
 
       const completion = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-        max_completion_tokens: 100
+        max_completion_tokens: 200
       });
 
       return completion.choices[0]?.message?.content?.trim() || 
