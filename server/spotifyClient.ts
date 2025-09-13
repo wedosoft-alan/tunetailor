@@ -7,7 +7,7 @@ async function getAccessToken() {
     // Return consistent object format even in cached path
     const refreshToken = connectionSettings?.settings?.oauth?.credentials?.refresh_token;
     const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-    const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
+    const clientId = '8639448281794af8a8115db27a5a5035';
     const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
     return {accessToken, clientId, refreshToken, expiresIn};
   }
@@ -45,7 +45,7 @@ async function getAccessToken() {
    const refreshToken =
     connectionSettings?.settings?.oauth?.credentials?.refresh_token;
   const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
+const clientId = '8639448281794af8a8115db27a5a5035';
   const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
   if (!connectionSettings || (!accessToken || !clientId || !refreshToken)) {
     throw new Error('Spotify not connected');

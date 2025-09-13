@@ -18,8 +18,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Happy Vibes',
         duration: 215,
         imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       },
       {
         id: 'mock-pop-2',
@@ -28,8 +28,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Energy Boost',
         duration: 198,
         imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       }
     ],
     'rock': [
@@ -40,8 +40,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Power Surge',
         duration: 240,
         imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       },
       {
         id: 'mock-rock-2',
@@ -50,8 +50,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Untamed',
         duration: 225,
         imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       }
     ],
     'electronic': [
@@ -62,8 +62,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Future Beats',
         duration: 180,
         imageUrl: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       },
       {
         id: 'mock-electronic-2',
@@ -72,8 +72,8 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
         album: 'Synthesized',
         duration: 195,
         imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop',
-        previewUrl: null,
-        spotifyUrl: null
+        previewUrl: undefined,
+        spotifyUrl: undefined
       }
     ]
   };
@@ -92,9 +92,9 @@ function generateMockTracks(preferences: PlaylistPreferences): Track[] {
   while (tracks.length < 10) {
     tracks.push({
       id: `mock-generic-${tracks.length + 1}`,
-      name: `${preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1)} Track ${tracks.length + 1}`,
+      name: `${preferences.mood && typeof preferences.mood === 'string' ? preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1) : 'Mixed'} Track ${tracks.length + 1}`,
       artists: ['AI Generated Artist'],
-      album: `${preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1)} Collection`,
+      album: `${preferences.mood && typeof preferences.mood === 'string' ? preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1) : 'Mixed'} Collection`,
       duration: Math.floor(Math.random() * 60) + 180, // 3-4 minutes
       imageUrl: 'https://images.unsplash.com/photo-1571974599782-87624638275a?w=300&h=300&fit=crop',
       previewUrl: null,
