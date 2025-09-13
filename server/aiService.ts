@@ -53,7 +53,7 @@ Examples:
           { role: "user", content: userInput }
         ],
         temperature: 0.3,
-        max_tokens: 500,
+        max_completion_tokens: 500,
         response_format: { type: "json_object" }
       });
 
@@ -140,7 +140,7 @@ The name should be catchy and reflect the music style. Respond with just the pla
         model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8,
-        max_tokens: 50
+        max_completion_tokens: 50
       });
 
       return completion.choices[0]?.message?.content?.trim() || 'AI Generated Mix';
@@ -164,7 +164,7 @@ Keep it under 100 characters and make it appealing.`;
         model: OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
-        max_tokens: 100
+        max_completion_tokens: 100
       });
 
       return completion.choices[0]?.message?.content?.trim() || 
