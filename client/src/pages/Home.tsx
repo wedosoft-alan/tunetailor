@@ -64,38 +64,71 @@ export default function Home() {
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | undefined>(undefined);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [activeTab, setActiveTab] = useState('generate');
+  const [spotifyUser, setSpotifyUser] = useState<any>(null);
 
   useEffect(() => {
     // Initialize notification service
     notificationService.init();
     setNotificationPermission(notificationService.getPermission());
+
+    // Check for OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('spotify_auth');
+    const error = urlParams.get('error');
+
+    if (authSuccess === 'success') {
+      checkAuthStatus();
+      // Clean URL
+      window.history.replaceState({}, document.title, '/');
+    } else if (error) {
+      console.error('Spotify auth error:', error);
+      // Clean URL
+      window.history.replaceState({}, document.title, '/');
+    }
+
+    // Check if user was previously authenticated (session-based)
+    checkAuthStatus();
   }, []);
 
-  const handleConnectSpotify = async () => {
-    console.log('Connecting to Spotify...');
-    
+  const checkAuthStatus = async () => {
     try {
-      // Test Spotify connection
-      const response = await fetch('/api/spotify/test');
+      const response = await fetch('/api/auth/spotify/status');
       const data = await response.json();
       
-      if (data.connected) {
+      if (data.authenticated) {
         setIsConnectedToSpotify(true);
-        console.log('Connected to Spotify!');
+        setSpotifyUser(data.user);
+        console.log('Connected to Spotify:', data.user?.display_name);
       } else {
-        console.error('Spotify connection failed:', data.error);
-        // For demo, still set as connected
-        setIsConnectedToSpotify(true);
+        setIsConnectedToSpotify(false);
+        setSpotifyUser(null);
       }
     } catch (error) {
-      console.error('Error testing Spotify connection:', error);
-      // For demo, still set as connected
-      setIsConnectedToSpotify(true);
+      console.error('Error checking auth status:', error);
+      setIsConnectedToSpotify(false);
+      setSpotifyUser(null);
     }
   };
 
-  const handleDisconnectSpotify = () => {
+  const handleConnectSpotify = async () => {
+    console.log('Connecting to Spotify with OAuth...');
+    
+    // Redirect to OAuth flow
+    window.location.href = '/auth/spotify';
+  };
+
+  const handleDisconnectSpotify = async () => {
+    try {
+      await fetch('/api/auth/spotify/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+    
     setIsConnectedToSpotify(false);
+    setSpotifyUser(null);
     setPlaylist(null);
     console.log('Disconnected from Spotify');
   };
@@ -104,29 +137,67 @@ export default function Home() {
     console.log('Generating playlist with preferences:', preferences);
     setIsGenerating(true);
     setPlaylist(null);
+
+    if (!isConnectedToSpotify) {
+      console.error('User not authenticated');
+      setIsGenerating(false);
+      return;
+    }
     
     try {
+      // Session-based authentication, no need to send userId
       const response = await fetch('/api/generate-playlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          preferences, 
-          userId: 'demo-user' // TODO: implement proper user system
+          preferences
         })
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setPlaylist(data.playlist);
+        const generatedPlaylist = data.playlist;
+        
+        // Try to create playlist on Spotify if we have valid tracks
+        if (generatedPlaylist.tracks && generatedPlaylist.tracks.some((t: any) => t.spotifyId)) {
+          console.log('🔗 Creating playlist on Spotify...');
+          
+          try {
+            const createResponse = await fetch('/api/create-playlist', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                playlistName: generatedPlaylist.name,
+                description: generatedPlaylist.description,
+                tracks: generatedPlaylist.tracks
+              })
+            });
+
+            if (createResponse.ok) {
+              const createData = await createResponse.json();
+              console.log('✅ Spotify playlist created:', createData.playlist);
+              
+              // Update playlist with Spotify URL
+              generatedPlaylist.spotifyUrl = createData.playlist.url;
+              generatedPlaylist.spotifyId = createData.playlist.id;
+            } else {
+              console.warn('⚠️  Failed to create Spotify playlist, showing tracks only');
+            }
+          } catch (createError) {
+            console.warn('⚠️  Error creating Spotify playlist:', createError);
+          }
+        }
+        
+        setPlaylist(generatedPlaylist);
         
         // Show notification if permission granted
         if (notificationPermission === 'granted') {
           await notificationService.showPlaylistNotification(
-            data.playlist.name,
-            data.playlist.tracks.length
+            generatedPlaylist.name,
+            generatedPlaylist.tracks.length
           );
         }
       } else {
@@ -183,10 +254,7 @@ export default function Home() {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            ...settings,
-            userId: 'demo-user' // TODO: implement proper user system
-          })
+          body: JSON.stringify(settings) // Session-based authentication handles userId
         });
 
         const data = await response.json();
