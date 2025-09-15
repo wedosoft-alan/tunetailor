@@ -236,6 +236,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Spotify OAuth Routes
   // ===============================
   
+  // Route 0: Diagnostic endpoint to show current configuration
+  app.get('/api/oauth/config', (req, res) => {
+    res.json({
+      redirectUri: SPOTIFY_REDIRECT_URI,
+      clientId: SPOTIFY_CLIENT_ID,
+      environment: process.env.NODE_ENV,
+      replitDomain: process.env.REPLIT_DEV_DOMAIN,
+      callbackUrl: `${req.protocol}://${req.get('host')}/auth/spotify/callback`,
+      currentHost: req.get('host'),
+      timestamp: new Date().toISOString()
+    });
+  });
+  
   // Route 1: Initiate OAuth flow
   app.get('/auth/spotify', (req, res) => {
     const state = generateRandomString(16);
@@ -265,20 +278,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { code, state, error } = req.query;
     const storedState = req.session.spotify_auth_state;
 
-    console.log('🎵 OAuth Callback received:', { code: !!code, state, error, storedState });
+    // Enhanced logging for debugging
+    console.log('🎵 OAuth Callback received with full details:', { 
+      code: code ? `${String(code).substring(0, 20)}...` : null, 
+      state, 
+      error, 
+      storedState,
+      hasSession: !!req.session,
+      sessionId: req.sessionID,
+      allQueryParams: req.query,
+      fullUrl: req.url,
+      headers: {
+        host: req.headers.host,
+        userAgent: req.headers['user-agent'],
+        referer: req.headers.referer
+      }
+    });
 
     if (error) {
-      console.error('❌ OAuth error:', error);
-      return res.redirect('/?error=access_denied');
+      console.error('❌ Spotify OAuth error received:', error);
+      return res.redirect('/?error=access_denied&spotify_error=' + encodeURIComponent(error));
     }
 
     if (!code) {
-      console.error('❌ No authorization code received');
-      return res.redirect('/?error=no_code');
+      console.error('❌ No authorization code received from Spotify - this likely means the redirect URI in Spotify app settings doesn\'t match');
+      console.error('❌ Expected redirect URI:', SPOTIFY_REDIRECT_URI);
+      console.error('❌ Received URL:', req.url);
+      return res.redirect('/?error=no_code&expected_uri=' + encodeURIComponent(SPOTIFY_REDIRECT_URI));
     }
 
     if (!state || state !== storedState) {
-      console.error('❌ State mismatch:', { received: state, stored: storedState });
+      console.error('❌ State mismatch - potential CSRF attack or session issue:', { received: state, stored: storedState });
       return res.redirect('/?error=state_mismatch');
     }
 

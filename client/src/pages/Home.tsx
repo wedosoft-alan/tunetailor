@@ -75,13 +75,28 @@ export default function Home() {
     const urlParams = new URLSearchParams(window.location.search);
     const authSuccess = urlParams.get('spotify_auth');
     const error = urlParams.get('error');
+    const spotifyError = urlParams.get('spotify_error');
+    const expectedUri = urlParams.get('expected_uri');
 
     if (authSuccess === 'success') {
       checkAuthStatus();
       // Clean URL
       window.history.replaceState({}, document.title, '/');
     } else if (error) {
-      console.error('Spotify auth error:', error);
+      console.error('Spotify auth error:', { error, spotifyError, expectedUri });
+      
+      // Show helpful error messages to user
+      if (error === 'no_code') {
+        console.error('🚨 CONFIGURATION ERROR: Spotify app redirect URI mismatch!');
+        console.error('Expected redirect URI:', expectedUri);
+        console.error('📝 TO FIX: Go to https://developer.spotify.com/dashboard, select your app, and add this exact URI to "Redirect URIs"');
+        alert(`Spotify configuration error!\n\nThe redirect URI in your Spotify app doesn't match.\n\nExpected: ${expectedUri}\n\nPlease add this exact URI to your Spotify app settings at https://developer.spotify.com/dashboard`);
+      } else if (error === 'access_denied') {
+        console.log('User denied Spotify access');
+      } else {
+        console.error('Other auth error:', error);
+      }
+      
       // Clean URL
       window.history.replaceState({}, document.title, '/');
     }
