@@ -7,7 +7,7 @@ async function getAccessToken() {
     // Return consistent object format even in cached path
     const refreshToken = connectionSettings?.settings?.oauth?.credentials?.refresh_token;
     const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-    const clientId = '8639448281794af8a8115db27a5a5035';
+    const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
     const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
     return {accessToken, clientId, refreshToken, expiresIn};
   }
@@ -45,7 +45,7 @@ async function getAccessToken() {
    const refreshToken =
     connectionSettings?.settings?.oauth?.credentials?.refresh_token;
   const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-const clientId = '8639448281794af8a8115db27a5a5035';
+const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
   const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
   if (!connectionSettings || (!accessToken || !clientId || !refreshToken)) {
     throw new Error('Spotify not connected');
@@ -64,7 +64,8 @@ export async function getUncachableSpotifyClient() {
       hasAccessToken: !!accessToken,
       hasClientId: !!clientId,
       hasRefreshToken: !!refreshToken,
-      expiresIn
+      expiresIn,
+      clientIdValue: clientId
     });
 
     // Try different initialization approach for better OAuth handling
@@ -77,10 +78,23 @@ export async function getUncachableSpotifyClient() {
     
     // Test connection (non-blocking)
     try {
-      const genres = await spotify.recommendations.genreSeeds();
-      console.log('✅ Spotify API connected successfully');
-    } catch (testError) {
-      console.log('ℹ️ Spotify API connection issue - using fallback data');
+      console.log('🔍 Testing Spotify API with user profile...');
+      const profile = await spotify.currentUser.profile();
+      console.log('✅ Spotify API connected successfully:', { 
+        userId: profile.id, 
+        displayName: profile.display_name 
+      });
+      
+      // Try genres as secondary test
+      try {
+        const genres = await spotify.recommendations.genreSeeds();
+        console.log('✅ Genre seeds also working:', { count: genres.genres?.length || 0 });
+      } catch (genreError: any) {
+        console.log('⚠️ Genres not available but user profile works');
+      }
+      
+    } catch (testError: any) {
+      console.log('ℹ️ Spotify API connection issue:', testError?.message || 'Unknown error');
     }
 
     return spotify;

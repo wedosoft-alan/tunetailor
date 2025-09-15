@@ -6,6 +6,10 @@ import { spotifyService } from "./spotifyService";
 import { aiService } from "./aiService";
 import type { Track } from "./spotifyService";
 import type { PlaylistPreferences } from "./aiService";
+import crypto from 'crypto';
+import { SpotifyApi } from "@spotify/web-api-ts-sdk";
+
+// Note: Using existing Replit Spotify integration instead of manual OAuth
 
 // Helper function to generate mock tracks when real APIs fail
 function generateMockTracks(preferences: PlaylistPreferences): Track[] {
