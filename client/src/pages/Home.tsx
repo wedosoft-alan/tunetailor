@@ -107,7 +107,7 @@ export default function Home() {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth/spotify/status');
+      const response = await fetch('/api/auth/status');
       const data = await response.json();
 
       if (data.authenticated) {
@@ -134,7 +134,7 @@ export default function Home() {
 
   const handleDisconnectSpotify = async () => {
     try {
-      await fetch('/api/auth/spotify/logout', {
+      await fetch('/api/auth/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
