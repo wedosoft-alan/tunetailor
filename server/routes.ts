@@ -263,7 +263,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       redirectUri: constructRedirectUri(req),
       clientId: SPOTIFY_CLIENT_ID,
       environment: process.env.NODE_ENV,
-      replitDomain: process.env.REPLIT_DEV_DOMAIN,
       callbackUrl: `${req.protocol}://${req.get("host")}/auth/spotify/callback`,
       currentHost: req.get("host"),
       timestamp: new Date().toISOString(),
@@ -326,7 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (error) {
       console.error("❌ Spotify OAuth error received:", error);
       return res.redirect(
-        "/?error=access_denied&spotify_error=" + encodeURIComponent(error),
+        "/?error=access_denied&spotify_error=" + encodeURIComponent(String(error)),
       );
     }
 
@@ -338,7 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("❌ Received URL:", req.url);
       return res.redirect(
         "/?error=no_code&expected_uri=" +
-          encodeURIComponent(constructRedirectUri(req)),
+        encodeURIComponent(constructRedirectUri(req)),
       );
     }
 
@@ -419,7 +418,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Clear state from session and cookie
-      delete req.session.spotify_auth_state;
       res.clearCookie("spotify_auth_state");
 
       // Redirect to frontend with success (no longer expose userId in URL)
@@ -626,7 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get music recommendations using user's authenticated Spotify
-      let tracks = [];
+      let tracks: Track[] = [];
       let usedFallback = false;
 
       try {
@@ -784,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             // Get music recommendations with robust fallback
-            let tracks = [];
+            let tracks: Track[] = [];
             let usedFallback = false;
 
             // Try to get recommendations first
@@ -795,7 +793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 targetValence: analyzedPrefs.valence,
                 targetDanceability: analyzedPrefs.danceability,
                 limit: 20,
-              });
+              }, req);
             } catch (recError) {
               console.log(
                 "Recommendations failed for scheduled generation, trying search:",
@@ -805,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Fallback to search if recommendations fail
               try {
                 const searchQuery = `${analyzedPrefs.genres[0]} ${analyzedPrefs.mood} ${analyzedPrefs.keywords.slice(0, 3).join(" ")}`;
-                tracks = await spotifyService.searchTracks(searchQuery, 20);
+                tracks = await spotifyService.searchTracks(searchQuery, 20, req);
               } catch (searchError) {
                 console.log(
                   "Spotify search also failed for scheduled generation, using mock data:",
@@ -852,7 +850,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   name: playlistName,
                   description: playlistDescription,
                   tracks,
-                });
+                }, req);
               } catch (spotifyError) {
                 console.error(
                   "Failed to create Spotify playlist for scheduled generation:",
@@ -933,7 +931,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Spotify connection
   app.get("/api/spotify/test", async (req, res) => {
     try {
-      const genres = await spotifyService.getAvailableGenres();
+      const genres = await spotifyService.getAvailableGenres(req);
       res.json({
         connected: true,
         availableGenres: genres.slice(0, 10), // Return first 10 genres as test

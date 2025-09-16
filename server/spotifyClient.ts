@@ -1,103 +1,110 @@
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
-let connectionSettings: any;
+// Helper function to refresh token if needed
+async function refreshTokenIfNeeded(sessionTokens: any): Promise<any> {
+  // Check if token expires within next 5 minutes
+  if (sessionTokens.expires_at < Date.now() + 5 * 60 * 1000) {
+    console.log('🔄 Refreshing expired token...');
 
-async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    // Return consistent object format even in cached path
-    const refreshToken = connectionSettings?.settings?.oauth?.credentials?.refresh_token;
-    const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-    const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
-    const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
-    return {accessToken, clientId, refreshToken, expiresIn};
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+    try {
+      const refreshResponse = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64')}`,
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: sessionTokens.refresh_token,
+        }),
+      });
 
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
+      const refreshData = await refreshResponse.json();
 
-  const response = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=spotify',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
+      if (!refreshResponse.ok) {
+        throw new Error(`Token refresh failed: ${JSON.stringify(refreshData)}`);
       }
+
+      // Update tokens
+      const updatedTokens = {
+        ...sessionTokens,
+        access_token: refreshData.access_token,
+        expires_at: Date.now() + refreshData.expires_in * 1000,
+        refresh_token: refreshData.refresh_token || sessionTokens.refresh_token,
+      };
+
+      console.log('✅ Token refreshed successfully');
+      return updatedTokens;
+    } catch (error) {
+      console.error('❌ Failed to refresh token:', error);
+      throw new Error('Token refresh failed');
     }
-  );
-  
-  console.log('🔗 Spotify connection fetch status:', response.status);
-  const connectionData = await response.json();
-  console.log('🔗 Connection response:', {
-    hasItems: !!connectionData.items,
-    itemsLength: connectionData.items?.length || 0,
-    firstItemKeys: connectionData.items?.[0] ? Object.keys(connectionData.items[0]) : []
-  });
-  
-  connectionSettings = connectionData.items?.[0];
-   const refreshToken =
-    connectionSettings?.settings?.oauth?.credentials?.refresh_token;
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-const clientId = connectionSettings?.settings?.oauth?.credentials?.client_id;
-  const expiresIn = connectionSettings.settings?.oauth?.credentials?.expires_in;
-  if (!connectionSettings || (!accessToken || !clientId || !refreshToken)) {
-    throw new Error('Spotify not connected');
   }
-  return {accessToken, clientId, refreshToken, expiresIn};
+
+  return sessionTokens;
 }
 
 // WARNING: Never cache this client.
 // Access tokens expire, so a new client must be created each time.
 // Always call this function again to get a fresh client.
-export async function getUncachableSpotifyClient() {
+export async function getUncachableSpotifyClient(req?: any) {
   try {
-    const {accessToken, clientId, refreshToken, expiresIn} = await getAccessToken();
-    
-    console.log('🎵 Creating Spotify client:', {
-      hasAccessToken: !!accessToken,
-      hasClientId: !!clientId,
-      hasRefreshToken: !!refreshToken,
-      expiresIn,
-      clientIdValue: clientId
-    });
+    // Check if we have session tokens from OAuth flow
+    if (req?.session?.spotifyTokens) {
+      console.log('🎵 Using session-based Spotify tokens');
 
-    // Try different initialization approach for better OAuth handling
-    const spotify = SpotifyApi.withAccessToken(clientId, {
-      access_token: accessToken,
-      token_type: "Bearer",
-      expires_in: expiresIn || 3600,
-      refresh_token: refreshToken,
-    });
-    
-    // Test connection (non-blocking)
-    try {
-      console.log('🔍 Testing Spotify API with user profile...');
-      const profile = await spotify.currentUser.profile();
-      console.log('✅ Spotify API connected successfully:', { 
-        userId: profile.id, 
-        displayName: profile.display_name 
-      });
-      
-      // Try genres as secondary test
-      try {
-        const genres = await spotify.recommendations.genreSeeds();
-        console.log('✅ Genre seeds also working:', { count: genres.genres?.length || 0 });
-      } catch (genreError: any) {
-        console.log('⚠️ Genres not available but user profile works');
+      let sessionTokens = req.session.spotifyTokens;
+
+      // Refresh token if needed
+      if (sessionTokens.expires_at < Date.now() + 5 * 60 * 1000) {
+        sessionTokens = await refreshTokenIfNeeded(sessionTokens);
+        // Update session with refreshed tokens
+        req.session.spotifyTokens = sessionTokens;
       }
-      
-    } catch (testError: any) {
-      console.log('ℹ️ Spotify API connection issue:', testError?.message || 'Unknown error');
+
+      console.log('🎵 Creating Spotify client with session tokens:', {
+        hasAccessToken: !!sessionTokens.access_token,
+        expiresAt: new Date(sessionTokens.expires_at).toISOString(),
+        clientId: process.env.SPOTIFY_CLIENT_ID
+      });
+
+      const spotify = SpotifyApi.withAccessToken(process.env.SPOTIFY_CLIENT_ID!, {
+        access_token: sessionTokens.access_token,
+        token_type: "Bearer",
+        expires_in: Math.floor((sessionTokens.expires_at - Date.now()) / 1000),
+        refresh_token: sessionTokens.refresh_token,
+      });
+
+      // Test connection
+      try {
+        console.log('🔍 Testing Spotify API with user profile...');
+        const profile = await spotify.currentUser.profile();
+        console.log('✅ Spotify API connected successfully:', {
+          userId: profile.id,
+          displayName: profile.display_name
+        });
+      } catch (testError: any) {
+        console.log('⚠️ Spotify API connection issue:', testError?.message || 'Unknown error');
+      }
+
+      return spotify;
     }
 
+    // Fallback to client credentials for public data (no user context)
+    console.log('🎵 No session tokens, using client credentials');
+
+    if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+      throw new Error('Spotify client credentials not configured');
+    }
+
+    const spotify = SpotifyApi.withClientCredentials(
+      process.env.SPOTIFY_CLIENT_ID,
+      process.env.SPOTIFY_CLIENT_SECRET
+    );
+
+    console.log('✅ Spotify client created with client credentials');
     return spotify;
+
   } catch (error) {
     console.error('❌ Failed to create Spotify client:', error);
     throw error;

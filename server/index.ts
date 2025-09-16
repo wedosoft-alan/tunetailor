@@ -1,9 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// DEBUG: Check if environment variables are loaded
-console.log("DEBUG: SPOTIFY_CLIENT_ID =", process.env.SPOTIFY_CLIENT_ID);
-
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -90,14 +87,21 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5001", 10);
-  server.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  // Export the app for Vercel
+  if (process.env.VERCEL) {
+    // In Vercel environment, export the app
+    export default app;
+  } else {
+    // In local development, start the server
+    const port = parseInt(process.env.PORT || "5001", 10);
+    server.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => {
+        log(`serving on port ${port}`);
+      },
+    );
+  }
 })();

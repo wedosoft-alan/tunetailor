@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -48,7 +51,7 @@ Examples:
 
       console.log('🤖 Calling OpenAI with model:', OPENAI_MODEL);
       console.log('🔑 API Key exists:', !!process.env.OPENAI_API_KEY);
-      
+
       const completion = await openai.chat.completions.create({
         model: OPENAI_MODEL,
         messages: [
@@ -86,7 +89,7 @@ Examples:
 
   public fallbackAnalysis(userInput: string): PlaylistPreferences {
     const text = userInput.toLowerCase();
-    
+
     // Basic genre detection
     const genreMap = {
       'pop': ['pop'],
@@ -179,7 +182,7 @@ Examples:
         max_completion_tokens: 200
       });
 
-      return completion.choices[0]?.message?.content?.trim() || 
+      return completion.choices[0]?.message?.content?.trim() ||
         `${trackCount} ${preferences.mood} tracks perfect for your day`;
     } catch (error) {
       console.error('Error generating description:', error);

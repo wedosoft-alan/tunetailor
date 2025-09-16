@@ -18,11 +18,11 @@ export interface PlaylistData {
 }
 
 class SpotifyService {
-  async searchTracks(query: string, limit: number = 20): Promise<Track[]> {
+  async searchTracks(query: string, limit: number = 20, req?: any): Promise<Track[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
+      const spotify = await getUncachableSpotifyClient(req);
       const results = await spotify.search(query, ['track'], 'KR', Math.min(50, Math.max(1, limit)) as any);
-      
+
       return results.tracks.items.map((track: any) => ({
         id: track.id,
         name: track.name,
@@ -47,10 +47,10 @@ class SpotifyService {
     targetValence?: number;
     targetDanceability?: number;
     limit?: number;
-  }): Promise<Track[]> {
+  }, req?: any): Promise<Track[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
-      
+      const spotify = await getUncachableSpotifyClient(req);
+
       const recommendations = await spotify.recommendations.get({
         seed_genres: params.seedGenres?.slice(0, 2), // Limit to 2 genres
         seed_artists: params.seedArtists?.slice(0, 2),
@@ -78,11 +78,11 @@ class SpotifyService {
     }
   }
 
-  async createPlaylist(playlistData: PlaylistData): Promise<string> {
+  async createPlaylist(playlistData: PlaylistData, req?: any): Promise<string> {
     try {
-      const spotify = await getUncachableSpotifyClient();
+      const spotify = await getUncachableSpotifyClient(req);
       const profile = await spotify.currentUser.profile();
-      
+
       const playlist = await spotify.playlists.createPlaylist(profile.id, {
         name: playlistData.name,
         description: playlistData.description,
@@ -90,7 +90,7 @@ class SpotifyService {
       });
 
       const trackUris = playlistData.tracks.map(track => `spotify:track:${track.id}`);
-      
+
       if (trackUris.length > 0) {
         await spotify.playlists.addItemsToPlaylist(playlist.id, trackUris);
       }
@@ -102,9 +102,9 @@ class SpotifyService {
     }
   }
 
-  async getAvailableGenres(): Promise<string[]> {
+  async getAvailableGenres(req?: any): Promise<string[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
+      const spotify = await getUncachableSpotifyClient(req);
       const genres = await spotify.recommendations.genreSeeds();
       return genres.genres;
     } catch (error) {
@@ -113,9 +113,9 @@ class SpotifyService {
     }
   }
 
-  async getUserTopArtists(limit: number = 10): Promise<any[]> {
+  async getUserTopArtists(limit: number = 10, req?: any): Promise<any[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
+      const spotify = await getUncachableSpotifyClient(req);
       const topArtists = await spotify.currentUser.topItems('artists', 'medium_term', Math.min(50, Math.max(1, limit)) as any);
       return topArtists.items.map((artist: any) => ({
         id: artist.id,
@@ -128,11 +128,11 @@ class SpotifyService {
     }
   }
 
-  async getUserTopTracks(limit: number = 10): Promise<Track[]> {
+  async getUserTopTracks(limit: number = 10, req?: any): Promise<Track[]> {
     try {
-      const spotify = await getUncachableSpotifyClient();
+      const spotify = await getUncachableSpotifyClient(req);
       const topTracks = await spotify.currentUser.topItems('tracks', 'medium_term', Math.min(50, Math.max(1, limit)) as any);
-      
+
       return topTracks.items.map((track: any) => ({
         id: track.id,
         name: track.name,
