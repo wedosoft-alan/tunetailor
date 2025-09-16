@@ -146,112 +146,6 @@ async function createSpotifyClient(req: any) {
   });
 }
 
-// Helper function to generate mock tracks when real APIs fail
-function generateMockTracks(preferences: PlaylistPreferences): Track[] {
-  const mockTracksByGenre: Record<string, Track[]> = {
-    pop: [
-      {
-        id: "mock-pop-1",
-        name: "Sunny Days",
-        artists: ["The Sunshine Band"],
-        album: "Happy Vibes",
-        duration: 215,
-        imageUrl:
-          "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-      {
-        id: "mock-pop-2",
-        name: "Dance Forever",
-        artists: ["Pop Dreams"],
-        album: "Energy Boost",
-        duration: 198,
-        imageUrl:
-          "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-    ],
-    rock: [
-      {
-        id: "mock-rock-1",
-        name: "Electric Thunder",
-        artists: ["Rock Legends"],
-        album: "Power Surge",
-        duration: 240,
-        imageUrl:
-          "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-      {
-        id: "mock-rock-2",
-        name: "Wild Freedom",
-        artists: ["Lightning Strike"],
-        album: "Untamed",
-        duration: 225,
-        imageUrl:
-          "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-    ],
-    electronic: [
-      {
-        id: "mock-electronic-1",
-        name: "Digital Dreams",
-        artists: ["Cyber Sound"],
-        album: "Future Beats",
-        duration: 180,
-        imageUrl:
-          "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-      {
-        id: "mock-electronic-2",
-        name: "Neon Nights",
-        artists: ["Electro Pulse"],
-        album: "Synthesized",
-        duration: 195,
-        imageUrl:
-          "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop",
-        previewUrl: undefined,
-        spotifyUrl: undefined,
-      },
-    ],
-  };
-
-  // Get tracks based on preferences
-  const tracks: Track[] = [];
-  const targetGenres =
-    preferences.genres.length > 0 ? preferences.genres : ["pop"];
-
-  for (const genre of targetGenres) {
-    const genreKey = genre.toLowerCase();
-    const genreTracks = mockTracksByGenre[genreKey] || mockTracksByGenre["pop"];
-    tracks.push(...genreTracks);
-  }
-
-  // Add some generic tracks if we don't have enough
-  while (tracks.length < 10) {
-    tracks.push({
-      id: `mock-generic-${tracks.length + 1}`,
-      name: `${preferences.mood && typeof preferences.mood === "string" ? preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1) : "Mixed"} Track ${tracks.length + 1}`,
-      artists: ["AI Generated Artist"],
-      album: `${preferences.mood && typeof preferences.mood === "string" ? preferences.mood.charAt(0).toUpperCase() + preferences.mood.slice(1) : "Mixed"} Collection`,
-      duration: Math.floor(Math.random() * 60) + 180, // 3-4 minutes
-      imageUrl:
-        "https://images.unsplash.com/photo-1571974599782-87624638275a?w=300&h=300&fit=crop",
-      previewUrl: undefined,
-      spotifyUrl: undefined,
-    });
-  }
-
-  return tracks.slice(0, 15); // Return up to 15 tracks
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
   // ===============================
   // Spotify OAuth Routes
@@ -524,6 +418,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route 6: Search Spotify tracks with the authenticated session
+  app.get("/api/spotify/search", async (req, res) => {
+    try {
+      const query = req.query.q;
+      const limitParam = req.query.limit;
+
+      if (!req.session.userId || !req.session.spotifyTokens) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      if (!query || typeof query !== "string" || query.trim().length === 0) {
+        return res.status(400).json({ error: "검색어가 필요합니다." });
+      }
+
+      const limit = Math.min(
+        50,
+        Math.max(1, limitParam ? parseInt(String(limitParam), 10) || 20 : 20),
+      );
+
+      const tracks = await spotifyService.searchTracks(query, limit, req);
+      res.json({ tracks });
+    } catch (error) {
+      console.error("Error searching Spotify tracks:", error);
+      res.status(500).json({ error: "Failed to search tracks" });
+    }
+  });
+
   // ===============================
   // Application Routes
   // ===============================
@@ -598,15 +519,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Playlist generation routes (using OAuth-authenticated Spotify with sessions)
   app.post("/api/generate-playlist", async (req, res) => {
     try {
-      const { preferences } = req.body;
+      const parsedRequest = generatePlaylistSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        return res.status(400).json({
+          success: false,
+          error:
+            parsedRequest.error.flatten().formErrors.join(" ") ||
+            "Invalid request",
+        });
+      }
+
+      const { preferences, trackCount } = parsedRequest.data;
       const userId = req.session.userId;
       const sessionTokens = req.session.spotifyTokens;
 
       console.log(
-        `🎵 Generating playlist for authenticated user ${userId} with preferences: "${preferences}"`,
+        `🎵 Generating playlist for authenticated user ${userId} with preferences: "${preferences}" (limit: ${trackCount})`,
       );
 
-      // Check if user is authenticated with Spotify OAuth (let createSpotifyClient handle token refresh)
       if (!userId || !sessionTokens) {
         return res.status(401).json({
           success: false,
@@ -614,8 +544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Parse preferences for AI analysis
-      let analyzedPrefs;
+      let analyzedPrefs: PlaylistPreferences;
       try {
         analyzedPrefs = await aiService.analyzePreferences(preferences);
       } catch (aiError) {
@@ -623,53 +552,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         analyzedPrefs = aiService.fallbackAnalysis(preferences);
       }
 
-      // Get music recommendations using user's authenticated Spotify
+      // Create Spotify client
+      let spotify: SpotifyApi;
+      try {
+        spotify = await createSpotifyClient(req);
+      } catch (clientError) {
+        console.error("Failed to create Spotify client:", clientError);
+        return res.status(502).json({
+          success: false,
+          error: "Spotify 인증 세션이 만료되었습니다. 다시 연결해주세요.",
+        });
+      }
+
+      const { seedGenres: normalizedGenres, unmatched } =
+        await spotifyService.normalizeGenres(analyzedPrefs.genres, { spotify });
+
+      const keywordPool = [...unmatched, ...analyzedPrefs.keywords];
+
       let tracks: Track[] = [];
-      let usedFallback = false;
 
       try {
-        // Create authenticated Spotify client for the user
-        const spotify = await createSpotifyClient(req);
-        console.log(
-          `🔍 Searching with user's authenticated Spotify for: ${analyzedPrefs.genres.join(", ")}`,
-        );
+        const recommendationResponse = await spotify.recommendations.get({
+          seed_genres: normalizedGenres.slice(0, 2),
+          target_energy: analyzedPrefs.energy,
+          target_valence: analyzedPrefs.valence,
+          target_danceability: analyzedPrefs.danceability,
+          limit: trackCount,
+        });
 
-        // Try recommendations first
+        if (recommendationResponse.tracks.length > 0) {
+          tracks = recommendationResponse.tracks.map((track: any) => ({
+            id: track.id,
+            spotifyId: track.id,
+            name: track.name,
+            artists: track.artists?.map((a: any) => a.name) || ["Unknown Artist"],
+            album: track.album?.name || "Unknown Album",
+            duration: track.duration_ms,
+            previewUrl: track.preview_url,
+            spotifyUrl: track.external_urls?.spotify,
+            imageUrl: track.album?.images?.[0]?.url,
+          }));
+          console.log(`✅ Found ${tracks.length} tracks via recommendations`);
+        }
+      } catch (recError) {
+        console.warn("Spotify recommendations failed:", recError);
+      }
+
+      if (tracks.length === 0) {
+        const fallbackTerms = new Set<string>();
+        if (normalizedGenres[0]) fallbackTerms.add(normalizedGenres[0]);
+        if (analyzedPrefs.mood) fallbackTerms.add(analyzedPrefs.mood);
+        keywordPool.slice(0, 3).forEach((term) => fallbackTerms.add(term));
+        const fallbackQuery = Array.from(fallbackTerms)
+          .filter(Boolean)
+          .join(" ");
+
         try {
-          const recommendationResponse = await spotify.recommendations.get({
-            seed_genres: analyzedPrefs.genres.slice(0, 2),
-            target_energy: analyzedPrefs.energy,
-            target_valence: analyzedPrefs.valence,
-            target_danceability: analyzedPrefs.danceability,
-            limit: 15,
-          });
-
-          if (recommendationResponse.tracks.length > 0) {
-            tracks = recommendationResponse.tracks.map((track: any) => ({
-              id: track.id,
-              spotifyId: track.id,
-              name: track.name,
-              artists: track.artists?.map((a: any) => a.name) || [
-                "Unknown Artist",
-              ], // Normalized to array
-              album: track.album?.name || "Unknown Album",
-              duration: track.duration_ms,
-              previewUrl: track.preview_url,
-              spotifyUrl: track.external_urls?.spotify,
-              imageUrl: track.album?.images?.[0]?.url, // Normalized to imageUrl
-            }));
-            console.log(`✅ Found ${tracks.length} tracks via recommendations`);
-          }
-        } catch (recError) {
-          console.log("Recommendations failed, trying search:", recError);
-
-          // Fallback to search
-          const searchQuery = `${analyzedPrefs.genres[0]} ${analyzedPrefs.mood}`;
           const searchResponse = await spotify.search(
-            searchQuery,
+            fallbackQuery,
             ["track"],
-            "US",
-            15,
+            undefined,
+            trackCount as any,
           );
 
           if (searchResponse.tracks.items.length > 0) {
@@ -677,35 +620,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
               id: track.id,
               spotifyId: track.id,
               name: track.name,
-              artists: track.artists?.map((a: any) => a.name) || [
-                "Unknown Artist",
-              ], // Normalized to array
+              artists: track.artists?.map((a: any) => a.name) || ["Unknown Artist"],
               album: track.album?.name || "Unknown Album",
               duration: track.duration_ms,
               previewUrl: track.preview_url,
               spotifyUrl: track.external_urls?.spotify,
-              imageUrl: track.album?.images?.[0]?.url, // Normalized to imageUrl
+              imageUrl: track.album?.images?.[0]?.url,
             }));
             console.log(`✅ Found ${tracks.length} tracks via search`);
           }
+        } catch (searchError) {
+          console.error("Spotify search failed:", searchError);
+          return res.status(502).json({
+            success: false,
+            error: "Spotify 검색 요청이 실패했습니다. 입력을 변경한 뒤 다시 시도해주세요.",
+          });
         }
-      } catch (spotifyError) {
-        console.log(
-          "User's Spotify search failed, using mock data:",
-          spotifyError,
-        );
-        usedFallback = true;
-        tracks = generateMockTracks(analyzedPrefs);
       }
 
       if (tracks.length === 0) {
-        console.log("No tracks found, generating mock tracks");
-        usedFallback = true;
-        tracks = generateMockTracks(analyzedPrefs);
+        return res.status(404).json({
+          success: false,
+          error: "조건에 맞는 곡을 찾지 못했습니다. 다른 키워드를 시도해보세요.",
+        });
       }
 
-      // Generate playlist name and description (with fallback)
-      let playlistName, playlistDescription;
+      let playlistName: string;
+      let playlistDescription: string;
       try {
         playlistName = await aiService.generatePlaylistName(analyzedPrefs);
         playlistDescription = await aiService.generatePlaylistDescription(
@@ -718,7 +659,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         playlistDescription = `${tracks.length} ${analyzedPrefs.mood} tracks perfect for your day`;
       }
 
-      // Save to storage
       let spotifyPlaylistId = null;
       try {
         await storage.createGeneratedPlaylist({
@@ -731,7 +671,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } catch (storageError) {
         console.error("Failed to save to storage:", storageError);
-        // Continue without saving
       }
 
       res.json({
@@ -744,7 +683,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalDuration: tracks.reduce((sum, track) => sum + track.duration, 0),
           createdAt: new Date(),
           spotifyId: spotifyPlaylistId,
-          usedFallback: usedFallback, // Indicate if fallback data was used
+          trackCountRequested: trackCount,
         },
       });
     } catch (error) {
@@ -781,14 +720,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               analyzedPrefs = aiService.fallbackAnalysis(schedule.preferences);
             }
 
-            // Get music recommendations with robust fallback
-            let tracks: Track[] = [];
-            let usedFallback = false;
+            const { seedGenres: scheduleSeeds, unmatched: scheduleUnmatched } =
+              await spotifyService.normalizeGenres(analyzedPrefs.genres, { req });
 
-            // Try to get recommendations first
+            // Get music recommendations
+            let tracks: Track[] = [];
+
             try {
               tracks = await spotifyService.getRecommendations({
-                seedGenres: analyzedPrefs.genres.slice(0, 2),
+                seedGenres: scheduleSeeds.slice(0, 2),
                 targetEnergy: analyzedPrefs.energy,
                 targetValence: analyzedPrefs.valence,
                 targetDanceability: analyzedPrefs.danceability,
@@ -800,28 +740,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 recError,
               );
 
-              // Fallback to search if recommendations fail
               try {
-                const searchQuery = `${analyzedPrefs.genres[0]} ${analyzedPrefs.mood} ${analyzedPrefs.keywords.slice(0, 3).join(" ")}`;
+                const fallbackTerms = new Set<string>();
+                if (scheduleSeeds[0]) fallbackTerms.add(scheduleSeeds[0]);
+                if (analyzedPrefs.mood) fallbackTerms.add(analyzedPrefs.mood);
+                [...scheduleUnmatched, ...analyzedPrefs.keywords]
+                  .slice(0, 3)
+                  .forEach((term) => fallbackTerms.add(term));
+                const searchQuery = Array.from(fallbackTerms)
+                  .filter(Boolean)
+                  .join(" ");
                 tracks = await spotifyService.searchTracks(searchQuery, 20, req);
               } catch (searchError) {
                 console.log(
-                  "Spotify search also failed for scheduled generation, using mock data:",
+                  "Spotify search also failed for scheduled generation:",
                   searchError,
                 );
-                usedFallback = true;
-
-                // Ultimate fallback - generate mock tracks based on preferences
-                tracks = generateMockTracks(analyzedPrefs);
               }
             }
 
             if (tracks.length === 0) {
               console.log(
-                "No tracks found for scheduled generation, generating mock tracks",
+                "No tracks found for scheduled generation; skipping playlist creation",
               );
-              usedFallback = true;
-              tracks = generateMockTracks(analyzedPrefs);
+              results.push({
+                scheduleId: schedule.id,
+                success: false,
+                error: "No tracks returned from Spotify",
+              });
+              continue;
             }
 
             // Generate playlist name and description (with fallback)
@@ -842,22 +789,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               playlistDescription = `${tracks.length} ${analyzedPrefs.mood} tracks perfect for your day`;
             }
 
-            // Create playlist on Spotify (only if we have real tracks)
+            // Create playlist on Spotify
             let spotifyPlaylistId = null;
-            if (!usedFallback) {
-              try {
-                spotifyPlaylistId = await spotifyService.createPlaylist({
-                  name: playlistName,
-                  description: playlistDescription,
-                  tracks,
-                }, req);
-              } catch (spotifyError) {
-                console.error(
-                  "Failed to create Spotify playlist for scheduled generation:",
-                  spotifyError,
-                );
-                // Continue without creating on Spotify
-              }
+            try {
+              spotifyPlaylistId = await spotifyService.createPlaylist({
+                name: playlistName,
+                description: playlistDescription,
+                tracks,
+              }, req);
+            } catch (spotifyError) {
+              console.error(
+                "Failed to create Spotify playlist for scheduled generation:",
+                spotifyError,
+              );
+              // Continue without creating on Spotify
             }
 
             // Save to storage
@@ -886,7 +831,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               success: true,
               playlistName,
               trackCount: tracks.length,
-              usedFallback: usedFallback,
             });
           }
         } catch (scheduleError) {

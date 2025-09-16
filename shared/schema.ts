@@ -54,6 +54,7 @@ export const insertGeneratedPlaylistSchema = createInsertSchema(generatedPlaylis
 // Request validation schemas
 export const generatePlaylistSchema = z.object({
   preferences: z.string().min(1, "Preferences cannot be empty"),
+  trackCount: z.number().int().min(1).max(50).default(15),
   userId: z.string().optional()
 });
 

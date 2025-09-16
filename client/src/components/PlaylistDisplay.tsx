@@ -34,6 +34,8 @@ interface PlaylistDisplayProps {
   onRegenerate?: () => void;
   currentlyPlaying?: string;
   onPlayPause?: (trackId: string) => void;
+  onRemoveTrack?: (trackId: string) => void;
+  allowTrackRemoval?: boolean;
 }
 
 export default function PlaylistDisplay({ 
@@ -42,7 +44,9 @@ export default function PlaylistDisplay({
   onSaveToSpotify,
   onRegenerate,
   currentlyPlaying,
-  onPlayPause
+  onPlayPause,
+  onRemoveTrack,
+  allowTrackRemoval = false
 }: PlaylistDisplayProps) {
   const [isSaving, setIsSaving] = useState(false);
 
@@ -187,6 +191,15 @@ export default function PlaylistDisplay({
                   onPlayPause={onPlayPause}
                 />
               </div>
+              {allowTrackRemoval ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRemoveTrack?.(track.id)}
+                >
+                  제거
+                </Button>
+              ) : null}
             </div>
           ))}
         </CardContent>

@@ -2,18 +2,24 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Sparkles, Wand2 } from 'lucide-react';
 
 interface PlaylistGeneratorProps {
   onGenerate?: (preferences: string) => void;
   isLoading?: boolean;
   isConnectedToSpotify?: boolean;
+  trackCount?: number;
+  onTrackCountChange?: (value: number) => void;
 }
 
 export default function PlaylistGenerator({ 
   onGenerate, 
   isLoading = false,
-  isConnectedToSpotify = false 
+  isConnectedToSpotify = false,
+  trackCount = 15,
+  onTrackCountChange
 }: PlaylistGeneratorProps) {
   const [preferences, setPreferences] = useState('');
 
@@ -34,6 +40,14 @@ export default function PlaylistGenerator({
   const handleSuggestionClick = (suggestion: string) => {
     setPreferences(suggestion);
     console.log('Selected suggestion:', suggestion);
+  };
+
+  const handleCountChange = (value: string) => {
+    const parsed = parseInt(value, 10);
+    if (!Number.isNaN(parsed)) {
+      const clamped = Math.max(1, Math.min(50, parsed));
+      onTrackCountChange?.(clamped);
+    }
   };
 
   return (
@@ -64,6 +78,23 @@ export default function PlaylistGenerator({
             <div className="text-xs text-muted-foreground text-right">
               {preferences.length}/500자
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div className="space-y-2">
+              <Label htmlFor="track-count">선곡 개수 (1-50)</Label>
+              <Input
+                id="track-count"
+                type="number"
+                min={1}
+                max={50}
+                value={trackCount}
+                onChange={(e) => handleCountChange(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              추천된 곡 수는 Spotify 추천 결과에 따라 약간 달라질 수 있습니다.
+            </p>
           </div>
 
           <div className="space-y-3">
