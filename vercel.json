@@ -1,18 +1,12 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "api/index.ts",
-            "use": "@vercel/node"
-        },
-        {
-            "src": "client/**",
-            "use": "@vercel/static-build",
-            "config": {
-                "distDir": "dist"
-            }
+    "buildCommand": "npm run build",
+    "outputDirectory": "client/dist",
+    "functions": {
+        "api/index.ts": {
+            "maxDuration": 30
         }
-    ],
+    },
     "routes": [
         {
             "src": "/api/(.*)",
@@ -24,14 +18,9 @@
         },
         {
             "src": "/(.*)",
-            "dest": "/client/$1"
+            "dest": "/$1"
         }
     ],
-    "functions": {
-        "api/index.ts": {
-            "maxDuration": 30
-        }
-    },
     "env": {
         "NODE_ENV": "production"
     }
