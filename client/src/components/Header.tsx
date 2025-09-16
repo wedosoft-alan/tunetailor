@@ -8,10 +8,10 @@ interface HeaderProps {
   onDisconnectSpotify?: () => void;
 }
 
-export default function Header({ 
-  isConnectedToSpotify = false, 
-  onConnectSpotify, 
-  onDisconnectSpotify 
+export default function Header({
+  isConnectedToSpotify = false,
+  onConnectSpotify,
+  onDisconnectSpotify
 }: HeaderProps) {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -41,7 +41,7 @@ export default function Header({
             </div>
             <div>
               <h1 className="text-xl font-display font-bold text-foreground" data-testid="app-title">
-                플레이리스트 생성기
+                Tune Tailor
               </h1>
               <p className="text-sm text-muted-foreground">AI와 스포티파이 기반</p>
             </div>
@@ -50,18 +50,16 @@ export default function Header({
           <div className="flex items-center gap-3">
             {/* Spotify Connection Status */}
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                isConnectedToSpotify 
-                  ? 'bg-primary/10 text-primary border border-primary/20' 
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${isConnectedToSpotify
+                  ? 'bg-primary/10 text-primary border border-primary/20'
                   : 'bg-muted text-muted-foreground border border-border'
-              }`} data-testid="connection-status">
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnectedToSpotify ? 'bg-primary' : 'bg-muted-foreground'
-                }`} />
+                }`} data-testid="connection-status">
+                <div className={`w-2 h-2 rounded-full ${isConnectedToSpotify ? 'bg-primary' : 'bg-muted-foreground'
+                  }`} />
                 {isConnectedToSpotify ? '연결됨' : '연결 안됨'}
               </div>
-              
-              <Button 
+
+              <Button
                 variant={isConnectedToSpotify ? "secondary" : "default"}
                 size="sm"
                 onClick={handleSpotifyAction}

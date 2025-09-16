@@ -53,7 +53,7 @@ export default function Home() {
       if (data.authenticated) {
         setIsConnectedToSpotify(true);
         setSpotifyUser(data.user);
-        
+
         // Get access token
         const tokenResponse = await fetch('/api/auth/token');
         const tokenData = await tokenResponse.json();
@@ -150,7 +150,7 @@ export default function Home() {
           },
           body: JSON.stringify({
             name: playlistName,
-            description: playlistDescription || 'Created with TuneTailor',
+            description: playlistDescription || 'Created with Tune Tailor',
             public: false
           })
         }
@@ -164,7 +164,7 @@ export default function Home() {
 
       // Step 2: Add tracks to playlist
       const trackUris = selectedTracks.map(track => `spotify:track:${track.id}`);
-      
+
       const addTracksResponse = await fetch(
         `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
         {
@@ -185,14 +185,14 @@ export default function Home() {
 
       setCreatedPlaylist(playlist);
       alert(`Playlist "${playlist.name}" created successfully!`);
-      
+
       // Reset form
       setPlaylistName('');
       setPlaylistDescription('');
       setSelectedTracks([]);
       setSearchResults([]);
       setSearchQuery('');
-      
+
     } catch (error) {
       console.error('Error creating playlist:', error);
       alert('Failed to create playlist. Please try again.');
@@ -256,7 +256,7 @@ export default function Home() {
                       Search
                     </Button>
                   </div>
-                  
+
                   <div className="max-h-96 overflow-y-auto space-y-2">
                     {searchResults.map((track) => (
                       <div key={track.id} className="flex items-center justify-between p-2 border rounded">
@@ -297,12 +297,12 @@ export default function Home() {
                       onChange={(e) => setPlaylistName(e.target.value)}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="playlist-description">Description (optional)</Label>
                     <Input
                       id="playlist-description"
-                      placeholder="Created with TuneTailor"
+                      placeholder="Created with Tune Tailor"
                       value={playlistDescription}
                       onChange={(e) => setPlaylistDescription(e.target.value)}
                     />
@@ -328,8 +328,8 @@ export default function Home() {
                     ))}
                   </div>
 
-                  <Button 
-                    onClick={createPlaylist} 
+                  <Button
+                    onClick={createPlaylist}
                     disabled={isLoading || !playlistName.trim() || selectedTracks.length === 0}
                     className="w-full"
                   >
@@ -349,9 +349,9 @@ export default function Home() {
                     <strong>{createdPlaylist.name}</strong> has been created successfully.
                   </p>
                   <Button asChild>
-                    <a 
-                      href={createdPlaylist.external_urls.spotify} 
-                      target="_blank" 
+                    <a
+                      href={createdPlaylist.external_urls.spotify}
+                      target="_blank"
                       rel="noopener noreferrer"
                     >
                       Open in Spotify
