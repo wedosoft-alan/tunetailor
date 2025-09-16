@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 // CORS configuration
 app.use(cors({
     origin: process.env.NODE_ENV === 'production'
-        ? ['https://tunetailor.vercel.app', 'https://tunetailor-git-main-alans-projects-a5e8c4c4.vercel.app']
+        ? ['https://tunetailor-nine.vercel.app']
         : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'],
     credentials: true
 }));
