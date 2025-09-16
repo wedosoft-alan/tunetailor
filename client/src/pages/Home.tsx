@@ -167,7 +167,11 @@ export default function Home() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          preferences
+          preferences: {
+            name: `${preferences.split(' ')[0]} Mix`,
+            description: `A personalized playlist based on: "${preferences}"`
+          },
+          tracks: [] // Empty for now, will be populated by AI service
         })
       });
 
