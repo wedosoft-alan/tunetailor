@@ -1,107 +1,47 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
-import PlaylistGenerator from '@/components/PlaylistGenerator';
-import PlaylistDisplay from '@/components/PlaylistDisplay';
-import PlaylistScheduler from '@/components/PlaylistScheduler';
-import { notificationService } from '@/services/notificationService';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-//todo: remove mock functionality
-const mockPlaylist = {
-  id: '1',
-  name: 'AI Generated Mix',
-  description: 'A personalized playlist created based on your preferences',
-  totalDuration: 2840,
-  createdAt: new Date(),
-  tracks: [
-    {
-      id: '1',
-      name: 'Don\'t Stop Me Now',
-      artists: ['Queen'],
-      album: 'Jazz',
-      duration: 209,
-      imageUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop'
-    },
-    {
-      id: '2',
-      name: 'Uptown Funk',
-      artists: ['Mark Ronson', 'Bruno Mars'],
-      album: 'Uptown Special',
-      duration: 270,
-      imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop'
-    },
-    {
-      id: '3',
-      name: 'Good as Hell',
-      artists: ['Lizzo'],
-      album: 'Cuz I Love You',
-      duration: 219,
-      imageUrl: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=300&fit=crop'
-    },
-    {
-      id: '4',
-      name: 'Blinding Lights',
-      artists: ['The Weeknd'],
-      album: 'After Hours',
-      duration: 200,
-      imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop'
-    },
-    {
-      id: '5',
-      name: 'Levitating',
-      artists: ['Dua Lipa'],
-      album: 'Future Nostalgia',
-      duration: 203,
-      imageUrl: 'https://images.unsplash.com/photo-1571974599782-87624638275a?w=300&h=300&fit=crop'
-    }
-  ]
-};
+interface SpotifyUser {
+  id: string;
+  display_name: string;
+  email: string;
+  images: { url: string }[];
+}
+
+interface SpotifyTrack {
+  id: string;
+  name: string;
+  artists: { name: string }[];
+  album: { name: string };
+  duration_ms: number;
+  preview_url: string | null;
+  external_urls: { spotify: string };
+}
+
+interface SpotifyPlaylist {
+  id: string;
+  name: string;
+  description: string;
+  external_urls: { spotify: string };
+}
 
 export default function Home() {
   const [isConnectedToSpotify, setIsConnectedToSpotify] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [playlist, setPlaylist] = useState<typeof mockPlaylist | null>(null);
-  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | undefined>(undefined);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [activeTab, setActiveTab] = useState('generate');
-  const [spotifyUser, setSpotifyUser] = useState<any>(null);
+  const [spotifyUser, setSpotifyUser] = useState<SpotifyUser | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [playlistName, setPlaylistName] = useState('');
+  const [playlistDescription, setPlaylistDescription] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
+  const [selectedTracks, setSelectedTracks] = useState<SpotifyTrack[]>([]);
+  const [createdPlaylist, setCreatedPlaylist] = useState<SpotifyPlaylist | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Initialize notification service
-    notificationService.init();
-    setNotificationPermission(notificationService.getPermission());
-
-    // Check for OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const authSuccess = urlParams.get('spotify_auth');
-    const error = urlParams.get('error');
-    const spotifyError = urlParams.get('spotify_error');
-    const expectedUri = urlParams.get('expected_uri');
-
-    if (authSuccess === 'success') {
-      checkAuthStatus();
-      // Clean URL
-      window.history.replaceState({}, document.title, '/');
-    } else if (error) {
-      console.error('Spotify auth error:', { error, spotifyError, expectedUri });
-
-      // Show helpful error messages to user
-      if (error === 'no_code') {
-        console.error('🚨 CONFIGURATION ERROR: Spotify app redirect URI mismatch!');
-        console.error('Expected redirect URI:', expectedUri);
-        console.error('📝 TO FIX: Go to https://developer.spotify.com/dashboard, select your app, and add this exact URI to "Redirect URIs"');
-        alert(`Spotify configuration error!\n\nThe redirect URI in your Spotify app doesn't match.\n\nExpected: ${expectedUri}\n\nPlease add this exact URI to your Spotify app settings at https://developer.spotify.com/dashboard`);
-      } else if (error === 'access_denied') {
-        console.log('User denied Spotify access');
-      } else {
-        console.error('Other auth error:', error);
-      }
-
-      // Clean URL
-      window.history.replaceState({}, document.title, '/');
-    }
-
-    // Check if user was previously authenticated (session-based)
     checkAuthStatus();
   }, []);
 
@@ -113,22 +53,22 @@ export default function Home() {
       if (data.authenticated) {
         setIsConnectedToSpotify(true);
         setSpotifyUser(data.user);
-        console.log('Connected to Spotify:', data.user?.display_name);
+        
+        // Get access token
+        const tokenResponse = await fetch('/api/auth/token');
+        const tokenData = await tokenResponse.json();
+        setAccessToken(tokenData.access_token);
       } else {
         setIsConnectedToSpotify(false);
         setSpotifyUser(null);
+        setAccessToken(null);
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
-      setIsConnectedToSpotify(false);
-      setSpotifyUser(null);
     }
   };
 
-  const handleConnectSpotify = async () => {
-    console.log('Connecting to Spotify with OAuth...');
-
-    // Redirect to OAuth flow
+  const handleConnectSpotify = () => {
     window.location.href = '/api/auth/spotify/login';
   };
 
@@ -138,199 +78,290 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
+      setIsConnectedToSpotify(false);
+      setSpotifyUser(null);
+      setAccessToken(null);
+      setSearchResults([]);
+      setSelectedTracks([]);
+      setCreatedPlaylist(null);
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('Error disconnecting Spotify:', error);
     }
-
-    setIsConnectedToSpotify(false);
-    setSpotifyUser(null);
-    setPlaylist(null);
-    console.log('Disconnected from Spotify');
   };
 
-  const handleGeneratePlaylist = async (preferences: string) => {
-    console.log('Generating playlist with preferences:', preferences);
-    setIsGenerating(true);
-    setPlaylist(null);
+  // Search tracks using Spotify Web API
+  const searchTracks = async () => {
+    if (!accessToken || !searchQuery.trim()) return;
 
-    if (!isConnectedToSpotify) {
-      console.error('User not authenticated');
-      setIsGenerating(false);
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(searchQuery)}&type=track&limit=20`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const data = await response.json();
+      setSearchResults(data.tracks.items);
+    } catch (error) {
+      console.error('Error searching tracks:', error);
+      alert('Failed to search tracks. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add track to selected list
+  const addTrack = (track: SpotifyTrack) => {
+    if (!selectedTracks.find(t => t.id === track.id)) {
+      setSelectedTracks([...selectedTracks, track]);
+    }
+  };
+
+  // Remove track from selected list
+  const removeTrack = (trackId: string) => {
+    setSelectedTracks(selectedTracks.filter(t => t.id !== trackId));
+  };
+
+  // Create playlist using Spotify Web API
+  const createPlaylist = async () => {
+    if (!accessToken || !spotifyUser || !playlistName.trim() || selectedTracks.length === 0) {
+      alert('Please provide a playlist name and select at least one track.');
       return;
     }
 
+    setIsLoading(true);
     try {
-      // Session-based authentication, no need to send userId
-      const response = await fetch('/api/generate-playlist', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          preferences: {
-            name: `${preferences.split(' ')[0]} Mix`,
-            description: `A personalized playlist based on: "${preferences}"`
-          },
-          tracks: [] // Empty for now, will be populated by AI service
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const generatedPlaylist = data.playlist;
-
-        // Try to create playlist on Spotify if we have valid tracks
-        if (generatedPlaylist.tracks && generatedPlaylist.tracks.some((t: any) => t.spotifyId)) {
-          console.log('🔗 Creating playlist on Spotify...');
-
-          try {
-            const createResponse = await fetch('/api/create-playlist', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                playlistName: generatedPlaylist.name,
-                description: generatedPlaylist.description,
-                tracks: generatedPlaylist.tracks
-              })
-            });
-
-            if (createResponse.ok) {
-              const createData = await createResponse.json();
-              console.log('✅ Spotify playlist created:', createData.playlist);
-
-              // Update playlist with Spotify URL
-              generatedPlaylist.spotifyUrl = createData.playlist.url;
-              generatedPlaylist.spotifyId = createData.playlist.id;
-            } else {
-              console.warn('⚠️  Failed to create Spotify playlist, showing tracks only');
-            }
-          } catch (createError) {
-            console.warn('⚠️  Error creating Spotify playlist:', createError);
-          }
-        }
-
-        setPlaylist(generatedPlaylist);
-
-        // Show notification if permission granted
-        if (notificationPermission === 'granted') {
-          await notificationService.showPlaylistNotification(
-            generatedPlaylist.name,
-            generatedPlaylist.tracks.length
-          );
-        }
-      } else {
-        console.error('Failed to generate playlist:', data.error);
-        // Fallback to mock data for demo
-        const generatedPlaylist = {
-          ...mockPlaylist,
-          name: `${preferences.split(' ')[0]} Mix`,
-          description: `A personalized playlist based on: "${preferences}"`
-        };
-        setPlaylist(generatedPlaylist);
-      }
-    } catch (error) {
-      console.error('Error generating playlist:', error);
-      // Fallback to mock data for demo
-      const generatedPlaylist = {
-        ...mockPlaylist,
-        name: `${preferences.split(' ')[0]} Mix`,
-        description: `A personalized playlist based on: "${preferences}"`
-      };
-      setPlaylist(generatedPlaylist);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handlePlayPause = (trackId: string) => {
-    setCurrentlyPlaying(prev => prev === trackId ? undefined : trackId);
-    console.log('Playing track:', trackId);
-  };
-
-  const handleSaveToSpotify = (playlist: any) => {
-    console.log('Saving playlist to Spotify:', playlist.name);
-    // Simulate saving
-  };
-
-  const handleRegenerate = () => {
-    console.log('Regenerating playlist...');
-    setIsGenerating(true);
-    setPlaylist(null);
-    setTimeout(() => {
-      setPlaylist(mockPlaylist);
-      setIsGenerating(false);
-    }, 3000);
-  };
-
-  const handleScheduleUpdate = async (settings: any) => {
-    console.log('Updating schedule:', settings);
-
-    if (settings.enabled) {
-      try {
-        const response = await fetch('/api/schedules', {
+      // Step 1: Create empty playlist
+      const createResponse = await fetch(
+        `https://api.spotify.com/v1/users/${spotifyUser.id}/playlists`,
+        {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(settings) // Session-based authentication handles userId
-        });
+          body: JSON.stringify({
+            name: playlistName,
+            description: playlistDescription || 'Created with TuneTailor',
+            public: false
+          })
+        }
+      );
 
-        const data = await response.json();
-        console.log('Schedule saved:', data);
-      } catch (error) {
-        console.error('Error saving schedule:', error);
+      if (!createResponse.ok) {
+        throw new Error('Failed to create playlist');
       }
-    }
-  };
 
-  const handleRequestNotificationPermission = async () => {
-    const permission = await notificationService.requestPermission();
-    setNotificationPermission(permission);
+      const playlist = await createResponse.json();
+
+      // Step 2: Add tracks to playlist
+      const trackUris = selectedTracks.map(track => `spotify:track:${track.id}`);
+      
+      const addTracksResponse = await fetch(
+        `https://api.spotify.com/v1/playlists/${playlist.id}/tracks`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            uris: trackUris
+          })
+        }
+      );
+
+      if (!addTracksResponse.ok) {
+        throw new Error('Failed to add tracks to playlist');
+      }
+
+      setCreatedPlaylist(playlist);
+      alert(`Playlist "${playlist.name}" created successfully!`);
+      
+      // Reset form
+      setPlaylistName('');
+      setPlaylistDescription('');
+      setSelectedTracks([]);
+      setSearchResults([]);
+      setSearchQuery('');
+      
+    } catch (error) {
+      console.error('Error creating playlist:', error);
+      alert('Failed to create playlist. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <Header
-        isConnectedToSpotify={isConnectedToSpotify}
-        onConnectSpotify={handleConnectSpotify}
-        onDisconnectSpotify={handleDisconnectSpotify}
-      />
-
+      <Header />
       <main className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-8">
-            <TabsTrigger value="generate" data-testid="tab-generate">플레이리스트 생성</TabsTrigger>
-            <TabsTrigger value="schedule" data-testid="tab-schedule">자동 스케줄</TabsTrigger>
-          </TabsList>
+        {!isConnectedToSpotify ? (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Connect to Spotify</CardTitle>
+              <CardDescription>
+                Connect your Spotify account to create playlists
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleConnectSpotify} className="w-full">
+                Connect Spotify
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Welcome, {spotifyUser?.display_name}!</CardTitle>
+                <CardDescription>
+                  Connected to Spotify • {spotifyUser?.email}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={handleDisconnectSpotify} variant="outline">
+                  Disconnect Spotify
+                </Button>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="generate" className="space-y-8">
-            <PlaylistGenerator
-              onGenerate={handleGeneratePlaylist}
-              isLoading={isGenerating}
-              isConnectedToSpotify={isConnectedToSpotify}
-            />
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Search and Select Tracks */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Search Tracks</CardTitle>
+                  <CardDescription>
+                    Search for tracks to add to your playlist
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Search for songs..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && searchTracks()}
+                    />
+                    <Button onClick={searchTracks} disabled={isLoading}>
+                      Search
+                    </Button>
+                  </div>
+                  
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {searchResults.map((track) => (
+                      <div key={track.id} className="flex items-center justify-between p-2 border rounded">
+                        <div className="flex-1">
+                          <p className="font-medium">{track.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {track.artists.map(artist => artist.name).join(', ')} • {track.album.name}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => addTrack(track)}
+                          disabled={selectedTracks.some(t => t.id === track.id)}
+                        >
+                          {selectedTracks.some(t => t.id === track.id) ? 'Added' : 'Add'}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
-            {(isGenerating || playlist) && (
-              <PlaylistDisplay
-                playlist={playlist || undefined}
-                isLoading={isGenerating}
-                currentlyPlaying={currentlyPlaying}
-                onPlayPause={handlePlayPause}
-                onSaveToSpotify={handleSaveToSpotify}
-                onRegenerate={handleRegenerate}
-              />
+              {/* Create Playlist */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create Playlist</CardTitle>
+                  <CardDescription>
+                    Selected tracks: {selectedTracks.length}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="playlist-name">Playlist Name</Label>
+                    <Input
+                      id="playlist-name"
+                      placeholder="My awesome playlist"
+                      value={playlistName}
+                      onChange={(e) => setPlaylistName(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="playlist-description">Description (optional)</Label>
+                    <Input
+                      id="playlist-description"
+                      placeholder="Created with TuneTailor"
+                      value={playlistDescription}
+                      onChange={(e) => setPlaylistDescription(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {selectedTracks.map((track) => (
+                      <div key={track.id} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{track.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {track.artists.map(artist => artist.name).join(', ')}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeTrack(track.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button 
+                    onClick={createPlaylist} 
+                    disabled={isLoading || !playlistName.trim() || selectedTracks.length === 0}
+                    className="w-full"
+                  >
+                    {isLoading ? 'Creating...' : 'Create Playlist'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {createdPlaylist && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>✅ Playlist Created!</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="mb-2">
+                    <strong>{createdPlaylist.name}</strong> has been created successfully.
+                  </p>
+                  <Button asChild>
+                    <a 
+                      href={createdPlaylist.external_urls.spotify} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      Open in Spotify
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-          </TabsContent>
-
-          <TabsContent value="schedule" className="space-y-8">
-            <PlaylistScheduler
-              onScheduleUpdate={handleScheduleUpdate}
-              notificationPermission={notificationPermission}
-              onRequestNotificationPermission={handleRequestNotificationPermission}
-            />
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </main>
     </div>
   );
