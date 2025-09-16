@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const IS_VERCEL = !!process.env.VERCEL;
 
@@ -70,15 +71,25 @@ app.get('/auth/spotify/login', (req, res) => {
     const state = generateSessionId();
     const scope = 'user-read-private user-read-email playlist-modify-public playlist-modify-private';
 
+    // Build redirect URI dynamically to support preview/prod domains
+    const proto = (process.env.NODE_ENV === 'production') ? 'https' : (req.protocol || 'http');
+    const host = req.get('host');
+    const dynamicRedirectUri = `${proto}://${host}/api/auth/spotify/callback`;
+
     const authUrl = new URL('https://accounts.spotify.com/authorize');
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('client_id', process.env.SPOTIFY_CLIENT_ID!);
     authUrl.searchParams.append('scope', scope);
-    authUrl.searchParams.append('redirect_uri', process.env.SPOTIFY_REDIRECT_URI!);
+    authUrl.searchParams.append('redirect_uri', process.env.SPOTIFY_REDIRECT_URI || dynamicRedirectUri);
     authUrl.searchParams.append('state', state);
 
     // Store state for verification
-    res.cookie('spotify_auth_state', state, { maxAge: 10 * 60 * 1000 }); // 10 minutes
+    res.cookie('spotify_auth_state', state, {
+        maxAge: 10 * 60 * 1000, // 10 minutes
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+    });
     res.redirect(authUrl.toString());
 });
 
@@ -93,9 +104,13 @@ app.get('/auth/spotify/callback', async (req, res) => {
 
     try {
         // Log environment variables (without revealing secrets)
+        const proto = (process.env.NODE_ENV === 'production') ? 'https' : (req.protocol || 'http');
+        const host = req.get('host');
+        const dynamicRedirectUri = `${proto}://${host}/api/auth/spotify/callback`;
+
         console.log('Spotify OAuth Config:', {
             clientId: process.env.SPOTIFY_CLIENT_ID?.substring(0, 8) + '...',
-            redirectUri: process.env.SPOTIFY_REDIRECT_URI,
+            redirectUri: process.env.SPOTIFY_REDIRECT_URI || dynamicRedirectUri,
             hasSecret: !!process.env.SPOTIFY_CLIENT_SECRET
         });
 
@@ -109,7 +124,7 @@ app.get('/auth/spotify/callback', async (req, res) => {
             body: new URLSearchParams({
                 grant_type: 'authorization_code',
                 code: code as string,
-                redirect_uri: process.env.SPOTIFY_REDIRECT_URI!
+                redirect_uri: process.env.SPOTIFY_REDIRECT_URI || dynamicRedirectUri
             })
         });
 
