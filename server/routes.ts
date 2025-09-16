@@ -39,8 +39,11 @@ if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
-const SPOTIFY_REDIRECT_URI =
-  "https://tune-tailor-wedosoft.replit.app/auth/spotify/callback";
+const constructRedirectUri = (req: any) => {
+  const protocol = req.protocol;
+  const host = req.get("host");
+  return `${protocol}://${host}/auth/spotify/callback`;
+};
 
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
@@ -257,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Route 0: Diagnostic endpoint to show current configuration
   app.get("/api/oauth/config", (req, res) => {
     res.json({
-      redirectUri: SPOTIFY_REDIRECT_URI,
+      redirectUri: constructRedirectUri(req),
       clientId: SPOTIFY_CLIENT_ID,
       environment: process.env.NODE_ENV,
       replitDomain: process.env.REPLIT_DEV_DOMAIN,
@@ -273,8 +276,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const scope =
       "user-read-private user-read-email playlist-modify-public playlist-modify-private user-library-read user-top-read";
 
-    // Store state in session for CSRF protection (more secure than cookies)
-    req.session.spotify_auth_state = state;
+    // Store state in a signed cookie for CSRF protection
+    res.cookie("spotify_auth_state", state, {
+      httpOnly: true,
+      signed: true,
+      maxAge: 300000,
+    }); // 5-minute expiry
 
     const authUrl =
       `${SPOTIFY_AUTH_URL}?` +
@@ -282,12 +289,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         response_type: "code",
         client_id: SPOTIFY_CLIENT_ID,
         scope: scope,
-        redirect_uri: SPOTIFY_REDIRECT_URI,
+        redirect_uri: constructRedirectUri(req),
         state: state,
       });
 
     console.log("🎵 Initiating Spotify OAuth with user app:", {
-      redirectUri: SPOTIFY_REDIRECT_URI,
+      redirectUri: constructRedirectUri(req),
       clientId: SPOTIFY_CLIENT_ID,
     });
 
@@ -297,7 +304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Route 2: Handle OAuth callback
   app.get("/auth/spotify/callback", async (req, res) => {
     const { code, state, error } = req.query;
-    const storedState = req.session.spotify_auth_state;
+    const storedState = req.signedCookies.spotify_auth_state;
 
     // Enhanced logging for debugging
     console.log("🎵 OAuth Callback received with full details:", {
@@ -327,11 +334,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(
         "❌ No authorization code received from Spotify - this likely means the redirect URI in Spotify app settings doesn't match",
       );
-      console.error("❌ Expected redirect URI:", SPOTIFY_REDIRECT_URI);
+      console.error("❌ Expected redirect URI:", constructRedirectUri(req));
       console.error("❌ Received URL:", req.url);
       return res.redirect(
         "/?error=no_code&expected_uri=" +
-          encodeURIComponent(SPOTIFY_REDIRECT_URI),
+          encodeURIComponent(constructRedirectUri(req)),
       );
     }
 
@@ -356,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code: code as string,
-          redirect_uri: SPOTIFY_REDIRECT_URI,
+          redirect_uri: constructRedirectUri(req),
         }),
       });
 
@@ -411,8 +418,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sessionStored: !!req.session.userId,
       });
 
-      // Clear state from session
+      // Clear state from session and cookie
       delete req.session.spotify_auth_state;
+      res.clearCookie("spotify_auth_state");
 
       // Redirect to frontend with success (no longer expose userId in URL)
       res.redirect("/?spotify_auth=success");
