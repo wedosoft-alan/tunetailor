@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+## [CRITICAL!!] All Communications should be Korean only.
+
 ## Project Structure & Module Organization
 The repo is split between a Vite-powered React client in `client/` and an Express + TypeScript API in `server/`. Shared DTOs, schemas, and utility types live in `shared/`, while Vercel serverless entry points are under `api/`. Static marketing and reference assets are stored in `attached_assets/`. Configuration for tooling (`tailwind.config.ts`, `drizzle.config.ts`, `vite.config.ts`, `tsconfig.json`) sits at the root—read these before changing build or schema behavior.
 

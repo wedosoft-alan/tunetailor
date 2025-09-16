@@ -1,0 +1,18 @@
+{
+  "Comment": "Update SSL CNAME record for ngrok",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "ssl.wedosoft.net",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "5yhfqdfmdux4lkpew.3akcxuk79dqf1xvtc.ngrok-cname.com"
+          }
+        ]
+      }
+    }
+  ]
+}

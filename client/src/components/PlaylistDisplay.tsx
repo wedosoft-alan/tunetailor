@@ -14,6 +14,7 @@ interface Track {
   imageUrl?: string;
   previewUrl?: string;
   spotifyUrl?: string;
+  spotifyId?: string;
 }
 
 interface Playlist {
@@ -22,13 +23,14 @@ interface Playlist {
   description?: string;
   tracks: Track[];
   totalDuration: number;
-  createdAt: Date;
+  createdAt: string | number | Date;
+  usedFallback?: boolean;
 }
 
 interface PlaylistDisplayProps {
   playlist?: Playlist;
   isLoading?: boolean;
-  onSaveToSpotify?: (playlist: Playlist) => void;
+  onSaveToSpotify?: (playlist: Playlist) => Promise<void> | void;
   onRegenerate?: () => void;
   currentlyPlaying?: string;
   onPlayPause?: (trackId: string) => void;
@@ -64,6 +66,11 @@ export default function PlaylistDisplay({
     return null;
   }
 
+  const normalizeSeconds = (value: number) =>
+    value > 1000 ? Math.round(value / 1000) : Math.round(value);
+
+  const normalizedTotalDuration = normalizeSeconds(playlist.totalDuration);
+
   const formatTotalDuration = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -74,15 +81,20 @@ export default function PlaylistDisplay({
   };
 
   const handleSave = async () => {
+    if (!onSaveToSpotify) return;
+
     setIsSaving(true);
-    console.log('Saving playlist to Spotify:', playlist.name);
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-    onSaveToSpotify?.(playlist);
-    setIsSaving(false);
+    try {
+      await onSaveToSpotify(playlist);
+    } catch (error) {
+      console.error('Failed to save playlist to Spotify:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleRegenerate = () => {
-    console.log('Regenerating playlist');
+    if (isLoading) return;
     onRegenerate?.();
   };
 
@@ -110,7 +122,7 @@ export default function PlaylistDisplay({
                     {playlist.tracks.length}곡
                   </Badge>
                   <Badge variant="secondary" className="text-xs" data-testid="badge-duration">
-                    {formatTotalDuration(playlist.totalDuration)}
+                    {formatTotalDuration(normalizedTotalDuration)}
                   </Badge>
                   <Badge variant="outline" className="text-xs" data-testid="badge-created">
                     생성일: {new Date(playlist.createdAt).toLocaleDateString('ko-KR')}
@@ -125,6 +137,7 @@ export default function PlaylistDisplay({
                 variant="outline"
                 size="sm"
                 onClick={handleRegenerate}
+                disabled={isLoading}
                 data-testid="button-regenerate"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
@@ -132,7 +145,7 @@ export default function PlaylistDisplay({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
                 className="min-w-24"
                 data-testid="button-save"
               >
@@ -169,7 +182,7 @@ export default function PlaylistDisplay({
               </div>
               <div className="flex-1">
                 <TrackCard
-                  track={track}
+                  track={{ ...track, duration: normalizeSeconds(track.duration) }}
                   isPlaying={currentlyPlaying === track.id}
                   onPlayPause={onPlayPause}
                 />
