@@ -236,14 +236,7 @@ app.post("/api/auth/logout", (req: Request, res: Response) => {
     });
 });
 
-// Legacy auth routes for backward compatibility
-app.get("/auth/login", (_req: Request, res: Response) => {
-    res.redirect("/api/auth/spotify/login");
-});
-
-app.get("/auth/callback", (_req: Request, res: Response) => {
-    res.redirect("/api/auth/spotify/callback");
-});// Fallback routes for undefined endpoints
+// Fallback routes for undefined endpoints
 app.get("/api/*", (_req: Request, res: Response) => {
     res.status(404).json({
         error: "API endpoint not implemented",

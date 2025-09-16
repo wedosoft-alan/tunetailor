@@ -84,7 +84,7 @@ export default function Home() {
       window.history.replaceState({}, document.title, '/');
     } else if (error) {
       console.error('Spotify auth error:', { error, spotifyError, expectedUri });
-      
+
       // Show helpful error messages to user
       if (error === 'no_code') {
         console.error('🚨 CONFIGURATION ERROR: Spotify app redirect URI mismatch!');
@@ -96,7 +96,7 @@ export default function Home() {
       } else {
         console.error('Other auth error:', error);
       }
-      
+
       // Clean URL
       window.history.replaceState({}, document.title, '/');
     }
@@ -109,7 +109,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/auth/spotify/status');
       const data = await response.json();
-      
+
       if (data.authenticated) {
         setIsConnectedToSpotify(true);
         setSpotifyUser(data.user);
@@ -127,9 +127,9 @@ export default function Home() {
 
   const handleConnectSpotify = async () => {
     console.log('Connecting to Spotify with OAuth...');
-    
+
     // Redirect to OAuth flow
-    window.location.href = '/auth/spotify';
+    window.location.href = '/api/auth/spotify/login';
   };
 
   const handleDisconnectSpotify = async () => {
@@ -141,7 +141,7 @@ export default function Home() {
     } catch (error) {
       console.error('Error logging out:', error);
     }
-    
+
     setIsConnectedToSpotify(false);
     setSpotifyUser(null);
     setPlaylist(null);
@@ -158,7 +158,7 @@ export default function Home() {
       setIsGenerating(false);
       return;
     }
-    
+
     try {
       // Session-based authentication, no need to send userId
       const response = await fetch('/api/generate-playlist', {
@@ -166,20 +166,20 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           preferences
         })
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         const generatedPlaylist = data.playlist;
-        
+
         // Try to create playlist on Spotify if we have valid tracks
         if (generatedPlaylist.tracks && generatedPlaylist.tracks.some((t: any) => t.spotifyId)) {
           console.log('🔗 Creating playlist on Spotify...');
-          
+
           try {
             const createResponse = await fetch('/api/create-playlist', {
               method: 'POST',
@@ -194,7 +194,7 @@ export default function Home() {
             if (createResponse.ok) {
               const createData = await createResponse.json();
               console.log('✅ Spotify playlist created:', createData.playlist);
-              
+
               // Update playlist with Spotify URL
               generatedPlaylist.spotifyUrl = createData.playlist.url;
               generatedPlaylist.spotifyId = createData.playlist.id;
@@ -205,9 +205,9 @@ export default function Home() {
             console.warn('⚠️  Error creating Spotify playlist:', createError);
           }
         }
-        
+
         setPlaylist(generatedPlaylist);
-        
+
         // Show notification if permission granted
         if (notificationPermission === 'granted') {
           await notificationService.showPlaylistNotification(
@@ -261,7 +261,7 @@ export default function Home() {
 
   const handleScheduleUpdate = async (settings: any) => {
     console.log('Updating schedule:', settings);
-    
+
     if (settings.enabled) {
       try {
         const response = await fetch('/api/schedules', {
@@ -287,12 +287,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header 
+      <Header
         isConnectedToSpotify={isConnectedToSpotify}
         onConnectSpotify={handleConnectSpotify}
         onDisconnectSpotify={handleDisconnectSpotify}
       />
-      
+
       <main className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto mb-8">
@@ -301,14 +301,14 @@ export default function Home() {
           </TabsList>
 
           <TabsContent value="generate" className="space-y-8">
-            <PlaylistGenerator 
+            <PlaylistGenerator
               onGenerate={handleGeneratePlaylist}
               isLoading={isGenerating}
               isConnectedToSpotify={isConnectedToSpotify}
             />
-            
+
             {(isGenerating || playlist) && (
-              <PlaylistDisplay 
+              <PlaylistDisplay
                 playlist={playlist || undefined}
                 isLoading={isGenerating}
                 currentlyPlaying={currentlyPlaying}
