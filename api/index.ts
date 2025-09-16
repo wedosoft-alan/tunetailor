@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Request, type Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import path from 'path';
@@ -67,7 +67,7 @@ function generateSessionId(): string {
 }
 
 // Spotify OAuth endpoints
-app.get('/auth/spotify/login', (req, res) => {
+const initiateSpotifyOAuth = (req: Request, res: Response) => {
     const state = generateSessionId();
     const scope = 'user-read-private user-read-email playlist-modify-public playlist-modify-private';
 
@@ -91,7 +91,10 @@ app.get('/auth/spotify/login', (req, res) => {
         sameSite: 'lax'
     });
     res.redirect(authUrl.toString());
-});
+};
+
+app.get('/auth/spotify/login', initiateSpotifyOAuth);
+app.get('/auth/spotify', initiateSpotifyOAuth);
 
 app.get('/auth/spotify/callback', async (req, res) => {
     const { code, state } = req.query;
