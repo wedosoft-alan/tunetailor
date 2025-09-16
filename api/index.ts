@@ -2,23 +2,55 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const IS_VERCEL = !!process.env.VERCEL;
+
+// __dirname is not defined in ESM by default; compute it for local/edge runtimes
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // CORS configuration
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? ['https://tunetailor-nine.vercel.app']
-        : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'],
-    credentials: true
+    origin: (origin, callback) => {
+        // Allow requests without an Origin header (e.g., server-to-server, curl)
+        if (!origin) return callback(null, true);
+
+        const devOrigins = [
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+        ];
+
+        const isAllowed =
+            devOrigins.includes(origin) ||
+            /\.vercel\.app$/i.test(origin) ||
+            origin === 'https://tunetailor-nine.vercel.app';
+
+        callback(null, isAllowed);
+    },
+    credentials: true,
 }));
 
 app.use(express.json());
 app.use(cookieParser());
+
+// On Vercel, incoming paths are like /api/auth/... due to rewrites. Our routes are defined
+// without the /api prefix. Normalize only those under /api/auth/* so health endpoints keep /api.
+if (IS_VERCEL) {
+    app.use((req, _res, next) => {
+        if (req.url.startsWith('/api/auth/')) {
+            req.url = req.url.replace(/^\/api/, '');
+        }
+        next();
+    });
+}
 
 // Simple in-memory storage for tokens (in production, use a proper database)
 const tokenStorage = new Map<string, {
@@ -213,17 +245,22 @@ app.get('/api/env-check', (req, res) => {
 });
 
 // Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '../client/dist')));
+// When running a single server locally we also serve the client build.
+// Skip this block on Vercel serverless functions (frontend is served by Vercel static hosting).
+if (process.env.NODE_ENV === 'production' && !IS_VERCEL) {
+    const clientDist = path.join(__dirname, '../client/dist');
+    if (fs.existsSync(clientDist)) {
+        app.use(express.static(clientDist));
 
-    // Only serve SPA for non-API routes
-    app.get('*', (req, res) => {
-        // Skip API routes
-        if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
-            return res.status(404).json({ error: 'Not found' });
-        }
-        res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-    });
+        // Only serve SPA for non-API routes
+        app.get('*', (req, res) => {
+            // Skip API routes
+            if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
+                return res.status(404).json({ error: 'Not found' });
+            }
+            res.sendFile(path.join(clientDist, 'index.html'));
+        });
+    }
 }
 
 // Error handling middleware
