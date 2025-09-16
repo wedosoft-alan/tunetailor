@@ -87,11 +87,8 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  // Export the app for Vercel
-  if (process.env.VERCEL) {
-    // In Vercel environment, export the app
-    export default app;
-  } else {
+
+  if (!process.env.VERCEL) {
     // In local development, start the server
     const port = parseInt(process.env.PORT || "5001", 10);
     server.listen(
@@ -105,3 +102,6 @@ app.use((req, res, next) => {
     );
   }
 })();
+
+// Export the app for Vercel
+export default app;
