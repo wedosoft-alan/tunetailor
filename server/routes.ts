@@ -7,7 +7,7 @@ import {
   generatePlaylistSchema,
 } from "@shared/schema";
 import { spotifyService } from "./spotifyService";
-import { aiService } from "./aiService";
+import { aiService, extractYearRange } from "./aiService";
 import type { Track } from "./spotifyService";
 import type { PlaylistPreferences } from "./aiService";
 import crypto from "crypto";
@@ -544,6 +544,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      console.log('🔐 Current Spotify access token:', sessionTokens.access_token);
+
       let analyzedPrefs: PlaylistPreferences;
       try {
         analyzedPrefs = await aiService.analyzePreferences(preferences);
@@ -564,70 +566,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { seedGenres: normalizedGenres, unmatched } =
-        await spotifyService.normalizeGenres(analyzedPrefs.genres, { spotify });
+      const inferredArtistNames = new Set(
+        (analyzedPrefs.artists ?? []).map((name) => name.trim()).filter(Boolean),
+      );
 
-      const keywordPool = [...unmatched, ...analyzedPrefs.keywords];
-
-      let tracks: Track[] = [];
-
-      try {
-        const recommendationResponse = await spotify.recommendations.get({
-          seed_genres: normalizedGenres.slice(0, 2),
-          target_energy: analyzedPrefs.energy,
-          target_valence: analyzedPrefs.valence,
-          target_danceability: analyzedPrefs.danceability,
-          limit: trackCount,
+      if (inferredArtistNames.size === 0) {
+        const guessed = await spotifyService.guessArtistsFromInput(preferences, {
+          spotify,
         });
-
-        if (recommendationResponse.tracks.length > 0) {
-          tracks = recommendationResponse.tracks.map((track: any) => ({
-            id: track.id,
-            spotifyId: track.id,
-            name: track.name,
-            artists: track.artists?.map((a: any) => a.name) || ["Unknown Artist"],
-            album: track.album?.name || "Unknown Album",
-            duration: track.duration_ms,
-            previewUrl: track.preview_url,
-            spotifyUrl: track.external_urls?.spotify,
-            imageUrl: track.album?.images?.[0]?.url,
-          }));
-          console.log(`✅ Found ${tracks.length} tracks via recommendations`);
-        }
-      } catch (recError) {
-        console.warn("Spotify recommendations failed:", recError);
+        guessed.forEach((name) => inferredArtistNames.add(name));
       }
 
-      if (tracks.length === 0) {
+      const topData = await spotifyService.getUserTopData({ spotify, req });
+
+      const { seedGenres: normalizedGenres, unmatched } =
+        await spotifyService.normalizeGenres(analyzedPrefs.genres, { spotify });
+      const {
+        artistSeeds: promptArtistSeeds,
+        trackSeeds: promptTrackSeeds,
+        resolvedNames,
+      } = await spotifyService.resolveArtistSeeds(
+        Array.from(inferredArtistNames),
+        { spotify },
+      );
+
+      const combinedArtistSeeds: string[] = [];
+      const combinedTrackSeeds: string[] = [];
+      const appendUnique = (target: string[], source: string[]) => {
+        for (const value of source) {
+          if (value && !target.includes(value)) {
+            target.push(value);
+          }
+        }
+      };
+
+      appendUnique(combinedArtistSeeds, promptArtistSeeds);
+      appendUnique(combinedArtistSeeds, topData.artistIds);
+      appendUnique(combinedTrackSeeds, promptTrackSeeds);
+      appendUnique(combinedTrackSeeds, topData.trackIds);
+
+      const keywordPool = [
+        ...resolvedNames,
+        ...topData.artistNames,
+        ...unmatched,
+        ...Array.from(inferredArtistNames),
+        ...analyzedPrefs.keywords,
+      ];
+
+      const seeds = {
+        seed_genres: [] as string[],
+        seed_artists: [] as string[],
+        seed_tracks: [] as string[],
+      };
+
+      const pushSeed = (type: keyof typeof seeds, value: string) => {
+        const total = seeds.seed_genres.length + seeds.seed_artists.length + seeds.seed_tracks.length;
+        if (!value || total >= 5) return;
+        if (!seeds[type].includes(value)) {
+          seeds[type].push(value);
+        }
+      };
+
+      // 1. 우선순위: 사용자가 요청한 장르와 아티스트
+      normalizedGenres.forEach((genre) => pushSeed('seed_genres', genre));
+      promptArtistSeeds.forEach((id) => pushSeed('seed_artists', id));
+      promptTrackSeeds.forEach((id) => pushSeed('seed_tracks', id));
+
+      // 2. 보조: 사용자의 Top 데이터 (공간이 남는 경우)
+      topData.artistIds.forEach((id) => pushSeed('seed_artists', id));
+      topData.trackIds.forEach((id) => pushSeed('seed_tracks', id));
+
+      // 3. 비상: 시드가 아예 없는 경우 'pop' 추가
+      if (seeds.seed_genres.length + seeds.seed_artists.length + seeds.seed_tracks.length === 0) {
+        pushSeed('seed_genres', 'pop');
+      }
+
+      // 1차 경로: 추천 API 404 우회를 위해 하이브리드 빌더 사용
+      let tracks: Track[] = [];
+      try {
+        let inferredYears = (analyzedPrefs as any).years?.length === 2
+          ? { from: (analyzedPrefs as any).years[0], to: (analyzedPrefs as any).years[1] }
+          : null;
+        if (!inferredYears) {
+          inferredYears = extractYearRange(preferences);
+        }
+
+        tracks = await spotifyService.buildHybridRecommendations({
+          genres: normalizedGenres,
+          seedArtistIds: promptArtistSeeds,
+          userTopArtistIds: topData.artistIds,
+          limit: trackCount,
+          targetEnergy: analyzedPrefs.energy,
+          targetValence: analyzedPrefs.valence,
+          targetDanceability: analyzedPrefs.danceability,
+          yearRange: inferredYears,
+          market: 'KR',
+          keywords: keywordPool,
+        }, req);
+
+        if (tracks.length > 0) {
+          console.log(`✅ Found ${tracks.length} tracks via hybrid builder`);
+        }
+      } catch (e) {
+        console.warn('Hybrid builder failed, will try fallback search:', e);
+      }
+
+      // 이후 부족하면 아래 검색 경로로 보강
+
+      if (tracks.length < trackCount) {
         const fallbackTerms = new Set<string>();
-        if (normalizedGenres[0]) fallbackTerms.add(normalizedGenres[0]);
+        normalizedGenres.slice(0, 2).forEach((genre) => fallbackTerms.add(genre));
         if (analyzedPrefs.mood) fallbackTerms.add(analyzedPrefs.mood);
-        keywordPool.slice(0, 3).forEach((term) => fallbackTerms.add(term));
-        const fallbackQuery = Array.from(fallbackTerms)
-          .filter(Boolean)
-          .join(" ");
+        Array.from(inferredArtistNames)
+          .slice(0, 5)
+          .forEach((artist) => fallbackTerms.add(artist));
+        topData.artistNames.slice(0, 5).forEach((artist) => fallbackTerms.add(artist));
+        keywordPool.slice(0, 8).forEach((term) => fallbackTerms.add(term));
+
+        const uniqueTracks = new Map<string, Track>();
 
         try {
-          const searchResponse = await spotify.search(
-            fallbackQuery,
-            ["track"],
-            undefined,
-            trackCount as any,
-          );
+          for (const term of Array.from(fallbackTerms)) {
+            const query = term?.toString().trim();
+            if (!query) continue;
 
-          if (searchResponse.tracks.items.length > 0) {
-            tracks = searchResponse.tracks.items.map((track: any) => ({
-              id: track.id,
-              spotifyId: track.id,
-              name: track.name,
-              artists: track.artists?.map((a: any) => a.name) || ["Unknown Artist"],
-              album: track.album?.name || "Unknown Album",
-              duration: track.duration_ms,
-              previewUrl: track.preview_url,
-              spotifyUrl: track.external_urls?.spotify,
-              imageUrl: track.album?.images?.[0]?.url,
-            }));
-            console.log(`✅ Found ${tracks.length} tracks via search`);
+            const remaining = trackCount - uniqueTracks.size;
+            if (remaining <= 0) break;
+
+            const searchResponse = await spotify.search(
+              query,
+              ["track"],
+              "KR",
+              Math.min(remaining * 2, 20) as any,
+            );
+
+            for (const item of searchResponse.tracks.items ?? []) {
+              if (!item?.id || uniqueTracks.has(item.id)) continue;
+              uniqueTracks.set(item.id, {
+                id: item.id,
+                spotifyId: item.id,
+                name: item.name,
+                artists: item.artists?.map((a: any) => a.name) || ["Unknown Artist"],
+                album: item.album?.name || "Unknown Album",
+                duration: item.duration_ms,
+                previewUrl: item.preview_url ?? undefined,
+                spotifyUrl: item.external_urls?.spotify,
+                imageUrl: item.album?.images?.[0]?.url,
+              });
+
+              if (uniqueTracks.size >= trackCount) break;
+            }
+
+            if (uniqueTracks.size >= trackCount) break;
+          }
+
+          if (uniqueTracks.size > 0) {
+            const toppedUp = Array.from(uniqueTracks.values());
+            // 하이브리드 결과 뒤에 보강하여 최대 trackCount까지 채움
+            const existingIds = new Set(tracks.map(t => t.id));
+            for (const t of toppedUp) {
+              if (tracks.length >= trackCount) break;
+              if (!existingIds.has(t.id)) {
+                tracks.push(t);
+                existingIds.add(t.id);
+              }
+            }
+            console.log(`✅ Found ${tracks.length} tracks via fallback search loops`);
           }
         } catch (searchError) {
           console.error("Spotify search failed:", searchError);
@@ -723,20 +827,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { seedGenres: scheduleSeeds, unmatched: scheduleUnmatched } =
               await spotifyService.normalizeGenres(analyzedPrefs.genres, { req });
 
-            // Get music recommendations
+            // Hybrid builder (no /v1/recommendations)
             let tracks: Track[] = [];
-
             try {
-              tracks = await spotifyService.getRecommendations({
-                seedGenres: scheduleSeeds.slice(0, 2),
+              let inferredYears = (analyzedPrefs as any).years?.length === 2
+                ? { from: (analyzedPrefs as any).years[0], to: (analyzedPrefs as any).years[1] }
+                : null;
+              if (!inferredYears) {
+                inferredYears = extractYearRange(schedule.preferences);
+              }
+
+              tracks = await spotifyService.buildHybridRecommendations({
+                genres: scheduleSeeds,
+                seedArtistIds: [],
+                userTopArtistIds: [],
+                limit: 20,
                 targetEnergy: analyzedPrefs.energy,
                 targetValence: analyzedPrefs.valence,
                 targetDanceability: analyzedPrefs.danceability,
-                limit: 20,
+                yearRange: inferredYears,
+                market: 'KR',
+                keywords: analyzedPrefs.keywords,
               }, req);
             } catch (recError) {
               console.log(
-                "Recommendations failed for scheduled generation, trying search:",
+                "Hybrid builder failed for scheduled generation, trying search:",
                 recError,
               );
 

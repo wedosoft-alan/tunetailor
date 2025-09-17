@@ -1,5 +1,28 @@
 import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 
+function createEnhancedFetch(baseFetch: typeof fetch) {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers ?? {});
+
+    if (!headers.has('Client-Id') && process.env.SPOTIFY_CLIENT_ID) {
+      headers.set('Client-Id', process.env.SPOTIFY_CLIENT_ID);
+    }
+
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+
+    const nextInit: RequestInit = {
+      ...init,
+      headers,
+    };
+
+    return baseFetch(input, nextInit);
+  };
+}
+
+const enhancedFetch = createEnhancedFetch(globalThis.fetch.bind(globalThis));
+
 // Helper function to refresh token if needed
 async function refreshTokenIfNeeded(sessionTokens: any): Promise<any> {
   // Check if token expires within next 5 minutes
@@ -73,7 +96,7 @@ export async function getUncachableSpotifyClient(req?: any) {
         token_type: "Bearer",
         expires_in: Math.floor((sessionTokens.expires_at - Date.now()) / 1000),
         refresh_token: sessionTokens.refresh_token,
-      });
+      }, { fetch: enhancedFetch });
 
       // Test connection
       try {
@@ -99,7 +122,9 @@ export async function getUncachableSpotifyClient(req?: any) {
 
     const spotify = SpotifyApi.withClientCredentials(
       process.env.SPOTIFY_CLIENT_ID,
-      process.env.SPOTIFY_CLIENT_SECRET
+      process.env.SPOTIFY_CLIENT_SECRET,
+      [],
+      { fetch: enhancedFetch }
     );
 
     console.log('✅ Spotify client created with client credentials');

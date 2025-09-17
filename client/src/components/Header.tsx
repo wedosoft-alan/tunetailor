@@ -32,57 +32,53 @@ export default function Header({
   };
 
   return (
-    <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50" data-testid="header">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Music className="w-6 h-6 text-primary" data-testid="logo-icon" />
-            </div>
-            <div>
-              <h1 className="text-xl font-display font-bold text-foreground" data-testid="app-title">
-                Tune Tailor
-              </h1>
-              <p className="text-sm text-muted-foreground">AI와 스포티파이 기반</p>
-            </div>
+    <header className="sticky top-0 z-50 border-b bg-card/60 backdrop-blur" data-testid="header">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="rounded-lg bg-primary/10 p-2">
+            <Music className="h-6 w-6 text-primary" data-testid="logo-icon" />
           </div>
-
-          <div className="flex items-center gap-3">
-            {/* Spotify Connection Status */}
-            <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${isConnectedToSpotify
-                  ? 'bg-primary/10 text-primary border border-primary/20'
-                  : 'bg-muted text-muted-foreground border border-border'
-                }`} data-testid="connection-status">
-                <div className={`w-2 h-2 rounded-full ${isConnectedToSpotify ? 'bg-primary' : 'bg-muted-foreground'
-                  }`} />
-                {isConnectedToSpotify ? '연결됨' : '연결 안됨'}
-              </div>
-
-              <Button
-                variant={isConnectedToSpotify ? "secondary" : "default"}
-                size="sm"
-                onClick={handleSpotifyAction}
-                data-testid="button-spotify-connect"
-              >
-                {isConnectedToSpotify ? '연결 해제' : '스포티파이 연결'}
-              </Button>
-            </div>
-
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              data-testid="button-theme-toggle"
-            >
-              {isDarkMode ? (
-                <Sun className="w-4 h-4" data-testid="icon-sun" />
-              ) : (
-                <Moon className="w-4 h-4" data-testid="icon-moon" />
-              )}
-            </Button>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-display font-semibold text-foreground sm:text-xl" data-testid="app-title">
+              Tune Tailor
+            </h1>
+            <p className="text-xs text-muted-foreground sm:text-sm">AI와 스포티파이 기반</p>
           </div>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
+          <Button
+            size="sm"
+            onClick={handleSpotifyAction}
+            data-testid="button-spotify-connect"
+            aria-pressed={isConnectedToSpotify}
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-colors sm:text-sm ${
+              isConnectedToSpotify
+                ? 'border-transparent bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'border-border bg-muted text-foreground hover:bg-muted/80'
+            }`}
+          >
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full ${
+                isConnectedToSpotify ? 'bg-white/90' : 'bg-muted-foreground'
+              }`}
+            />
+            {isConnectedToSpotify ? 'Spotify 연결됨' : 'Spotify 연결하기'}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9 rounded-full border border-border/60 text-muted-foreground"
+            data-testid="button-theme-toggle"
+          >
+            {isDarkMode ? (
+              <Sun className="h-4 w-4" data-testid="icon-sun" />
+            ) : (
+              <Moon className="h-4 w-4" data-testid="icon-moon" />
+            )}
+          </Button>
         </div>
       </div>
     </header>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from '@/components/Header';
 import PlaylistGenerator from '@/components/PlaylistGenerator';
 import PlaylistDisplay from '@/components/PlaylistDisplay';
@@ -7,7 +7,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
+import { ChevronDown } from 'lucide-react';
 
 interface SpotifyUser {
   id: string;
@@ -56,10 +58,78 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeneratedTrack[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSearchSectionOpen, setIsSearchSectionOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<GeneratedTrack[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const suggestionController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     void checkAuthStatus();
   }, []);
+
+  useEffect(() => {
+    if (window.innerWidth >= 640) {
+      setIsSearchSectionOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isConnectedToSpotify) {
+      suggestionController.current?.abort();
+      suggestionController.current = null;
+      setSuggestions([]);
+      setIsSuggesting(false);
+      return;
+    }
+
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      suggestionController.current?.abort();
+      suggestionController.current = null;
+      setSuggestions([]);
+      setIsSuggesting(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      suggestionController.current?.abort();
+      const controller = new AbortController();
+      suggestionController.current = controller;
+      setIsSuggesting(true);
+
+      try {
+        const response = await fetch(`/api/spotify/search?q=${encodeURIComponent(trimmed)}&limit=6`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch suggestions');
+        }
+
+        const data = await response.json();
+        const suggestionTracks = Array.isArray(data.tracks)
+          ? data.tracks.map((track: any) => normalizeTrack(track, 'manual'))
+          : [];
+        setSuggestions(suggestionTracks);
+      } catch (error) {
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Error fetching suggestions:', error);
+          setSuggestions([]);
+        }
+      } finally {
+        if (suggestionController.current === controller) {
+          suggestionController.current = null;
+        }
+        setIsSuggesting(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      suggestionController.current?.abort();
+      suggestionController.current = null;
+    };
+  }, [searchQuery, isConnectedToSpotify]);
 
   const checkAuthStatus = async () => {
     try {
@@ -89,6 +159,10 @@ export default function Home() {
     setGeneratedAt(null);
     setGenerateError(null);
     setSearchResults([]);
+    suggestionController.current?.abort();
+    suggestionController.current = null;
+    setSuggestions([]);
+    setIsSuggesting(false);
   };
 
   const handleConnectSpotify = () => {
@@ -200,6 +274,10 @@ export default function Home() {
     }
 
     setIsSearching(true);
+    suggestionController.current?.abort();
+    suggestionController.current = null;
+    setIsSuggesting(false);
+    setSuggestions([]);
     try {
       const response = await fetch(`/api/spotify/search?q=${encodeURIComponent(searchQuery)}&limit=20`);
       const data = await response.json();
@@ -235,6 +313,7 @@ export default function Home() {
     }
 
     setSelectedTracks((prev) => [...prev, { ...track, source: track.source ?? 'manual' }]);
+    setSuggestions((prev) => prev.filter((t) => t.id !== track.id));
   };
 
   const handleRemoveTrack = (trackId: string) => {
@@ -321,7 +400,7 @@ export default function Home() {
         onConnectSpotify={handleConnectSpotify}
         onDisconnectSpotify={handleDisconnectSpotify}
       />
-      <main className="container mx-auto px-4 py-8 space-y-6">
+      <main className="mx-auto w-full max-w-3xl space-y-6 px-4 pb-32 pt-6 sm:space-y-8 sm:pb-20 sm:pt-8">
         {!isConnectedToSpotify && !isCheckingAuth ? (
           <Card className="max-w-md mx-auto">
             <CardHeader>
@@ -339,19 +418,18 @@ export default function Home() {
         ) : null}
 
         {isConnectedToSpotify && spotifyUser ? (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>환영합니다, {spotifyUser.display_name}님</CardTitle>
-                <CardDescription>{spotifyUser.email}</CardDescription>
+          <div className="space-y-6 sm:space-y-8">
+            <Card className="border-border/60 bg-card/70 shadow-sm">
+              <CardHeader className="space-y-1 pb-3">
+                <CardTitle className="text-lg sm:text-xl">환영합니다, {spotifyUser.display_name}님</CardTitle>
+                <CardDescription className="text-sm text-muted-foreground sm:text-base">
+                  {spotifyUser.email}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center justify-between flex-col sm:flex-row gap-3">
-                <div className="text-sm text-muted-foreground">
-                  Spotify 계정이 연결되었습니다. 아래에서 원하는 분위기를 설명해보세요.
-                </div>
-                <Button onClick={handleDisconnectSpotify} variant="outline">
-                  연결 해제
-                </Button>
+              <CardContent className="space-y-3">
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Spotify 계정이 연결되었습니다. 지금 원하는 분위기나 상황을 알려주시면 맞춤 플레이리스트를 만들어 드릴게요.
+                </p>
               </CardContent>
             </Card>
 
@@ -399,50 +477,135 @@ export default function Home() {
               </Card>
             ) : null}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>곡 검색으로 직접 추가하기</CardTitle>
-                <CardDescription>AI 추천 외에 원하는 곡을 찾아 플레이리스트에 추가해 보세요.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    placeholder="곡 제목, 아티스트 등을 입력하세요"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void handleSearchTracks();
-                      }
-                    }}
-                  />
-                  <Button onClick={handleSearchTracks} disabled={isSearching}>
-                    {isSearching ? '검색 중...' : '검색'}
-                  </Button>
-                </div>
-
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {searchResults.map((track) => (
-                    <div key={track.id} className="flex items-center justify-between p-2 border rounded">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{track.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {track.artists.join(', ')} • {track.album}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddTrack(track)}
-                        disabled={selectedTracks.some((t) => t.id === track.id)}
-                      >
-                        {selectedTracks.some((t) => t.id === track.id) ? '추가됨' : '추가'}
-                      </Button>
+            <Collapsible open={isSearchSectionOpen} onOpenChange={setIsSearchSectionOpen}>
+              <Card className="border-border/60 bg-card/60 shadow-sm">
+                <CardHeader className="space-y-2 pb-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg sm:text-xl">원하는 곡 검색</CardTitle>
+                      <CardDescription className="text-sm text-muted-foreground">
+                        필요한 곡을 빠르게 검색해 플레이리스트에 바로 추가하세요.
+                      </CardDescription>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-9 w-9 rounded-full border border-border/60 transition-transform ${
+                          isSearchSectionOpen ? 'rotate-180' : 'rotate-0'
+                        }`}
+                        aria-label={isSearchSectionOpen ? '검색 영역 접기' : '검색 영역 펼치기'}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                </CardHeader>
+                <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+                  <CardContent className="space-y-4 pt-0 sm:pt-2">
+                    <div className="space-y-2">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          placeholder="곡 제목, 아티스트 등을 입력하세요"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleSearchTracks();
+                            }
+                          }}
+                          className="h-11 min-w-0 flex-1"
+                        />
+                        <Button
+                          onClick={handleSearchTracks}
+                          disabled={isSearching}
+                          className="h-11 px-4 sm:w-auto"
+                        >
+                          {isSearching ? '검색 중...' : '검색'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground sm:text-sm">
+                        검색 후 원하는 곡을 선택하면 플레이리스트에 바로 추가됩니다.
+                      </p>
+                    </div>
+
+                    {isSuggesting ? (
+                      <p className="text-xs text-muted-foreground">자동 완성 검색 중...</p>
+                    ) : null}
+
+                    {suggestions.length > 0 ? (
+                      <div className="space-y-2 rounded-xl border border-border/60 bg-background/60 p-3">
+                        <p className="text-xs font-medium text-muted-foreground sm:text-sm">바로 추가할 수 있는 추천 곡</p>
+                        <div className="space-y-2">
+                          {suggestions.map((track) => {
+                            const alreadyAdded = selectedTracks.some((t) => t.id === track.id);
+                            return (
+                              <button
+                                key={track.id}
+                                type="button"
+                                onClick={() => handleAddTrack(track)}
+                                disabled={alreadyAdded}
+                                className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                  alreadyAdded
+                                    ? 'border-border bg-muted/30 text-muted-foreground'
+                                    : 'border-border/60 bg-card/80 hover:bg-card'
+                                }`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium sm:text-base">{track.name}</p>
+                                  <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                    {track.artists.join(', ')} • {track.album}
+                                  </p>
+                                </div>
+                                <span className="text-xs font-semibold text-primary">
+                                  {alreadyAdded ? '추가됨' : '추가'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {searchResults.length > 0 ? (
+                      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                        {searchResults.map((track) => {
+                          const alreadyAdded = selectedTracks.some((t) => t.id === track.id);
+                          return (
+                            <div
+                              key={track.id}
+                              className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium sm:text-base">{track.name}</p>
+                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                  {track.artists.join(', ')} • {track.album}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant={alreadyAdded ? 'outline' : 'default'}
+                                onClick={() => handleAddTrack(track)}
+                                disabled={alreadyAdded}
+                              >
+                                {alreadyAdded ? '추가됨' : '추가'}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
+                    {searchResults.length === 0 && suggestions.length === 0 && !isSearching ? (
+                      <p className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground sm:text-sm">
+                        검색 결과가 여기에 표시됩니다.
+                      </p>
+                    ) : null}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             <PlaylistDisplay
               playlist={playlistForDisplay}

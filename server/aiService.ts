@@ -19,6 +19,8 @@ export interface PlaylistPreferences {
   artists?: string[];
   activities?: string[];
   keywords: string[];
+  // Optional year range, e.g., [1990, 1999]
+  years?: [number, number];
 }
 
 class AIService {
@@ -192,3 +194,60 @@ Examples:
 }
 
 export const aiService = new AIService();
+
+// Extract a year range from free text like:
+// - "90년대", "1990년대"
+// - "1990-1999", "2010~2015", "2012 to 2016"
+// - "early 90s", "mid 2000s", "late 80s", "90s"
+export function extractYearRange(text: string): { from: number; to: number } | null {
+  if (!text) return null;
+  const s = text.toLowerCase();
+
+  // Helper to clamp a decade to early/mid/late buckets
+  const applyBucket = (from: number, to: number) => {
+    const hasEarly = /early|초반/.test(s);
+    const hasMid = /mid|중반/.test(s);
+    const hasLate = /late|후반/.test(s);
+    if (hasEarly) return { from, to: from + 2 };
+    if (hasMid) return { from: from + 3, to: from + 6 };
+    if (hasLate) return { from: from + 7, to };
+    return { from, to };
+  };
+
+  // 1) Explicit range: 1990-1999, 2010~2015, 2010 to 2015
+  const rangeMatch = s.match(/\b(19|20)(\d{2})\s*(?:-|~|to)\s*(19|20)(\d{2})\b/);
+  if (rangeMatch) {
+    const y1 = parseInt(rangeMatch[1] + rangeMatch[2], 10);
+    const y2 = parseInt(rangeMatch[3] + rangeMatch[4], 10);
+    if (y1 <= y2) return { from: y1, to: y2 };
+    return { from: y2, to: y1 };
+  }
+
+  // 2) 4-digit decade: 1990s, 1990's, 1990년대
+  const decade4Match = s.match(/\b((?:19|20)\d{2})(?:s|'s)?\b|\b((?:19|20)\d{2})년대\b/);
+  if (decade4Match) {
+    const yearStr = (decade4Match[1] || decade4Match[2]) as string;
+    if (yearStr) {
+      const base = parseInt(yearStr, 10);
+      const decadeStart = Math.floor(base / 10) * 10;
+      const decadeEnd = decadeStart + 9;
+      return applyBucket(decadeStart, decadeEnd);
+    }
+  }
+
+  // 3) 2-digit decade: 90s, 80's, 90년대
+  const decade2Korean = s.match(/\b(\d{2})년대\b/);
+  const decade2English = s.match(/\b(\d{2})(?:s|'s)\b/);
+  const decade2 = decade2Korean?.[1] || decade2English?.[1];
+  if (decade2) {
+    const d = parseInt(decade2, 10);
+    // Heuristic: 00-29 -> 2000s, 30-99 -> 1900s
+    const century = d <= 29 ? 2000 : 1900;
+    const decadeStart = century + d;
+    const alignedStart = Math.floor(decadeStart / 10) * 10;
+    const alignedEnd = alignedStart + 9;
+    return applyBucket(alignedStart, alignedEnd);
+  }
+
+  return null;
+}
