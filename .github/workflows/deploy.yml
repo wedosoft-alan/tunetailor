@@ -68,7 +68,7 @@ jobs:
         npx --yes vercel@25.1.0 deploy \
           --prod \
           --force \
-          --yes \
+          --confirm \
           --token "$VERCEL_TOKEN" \
           --meta githubDeployment=1 \
           --meta "githubCommitSha=$GITHUB_SHA" \

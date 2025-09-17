@@ -10,11 +10,11 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "/api/index.ts"
+            "destination": "/api/index.ts?path=/api/$1"
         },
         {
             "source": "/auth/(.*)",
-            "destination": "/api/index.ts"
+            "destination": "/api/index.ts?path=/auth/$1"
         }
     ]
 }

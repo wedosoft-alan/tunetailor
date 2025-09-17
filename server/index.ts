@@ -17,6 +17,28 @@ app.use(
   ),
 );
 
+// Vercel rewrite 보정: /api/index.ts?path=/api/xxx 형태로 들어온 요청의 원래 경로를 복원
+app.use((req, _res, next) => {
+  const q = req.query as any;
+  const originalPath = q?.path as string | undefined;
+  if (originalPath && typeof originalPath === "string") {
+    try {
+      // 현재 URL의 쿼리스트링에서 path 파라미터 제거한 나머지를 보존
+      const urlObj = new URL(req.protocol + "://" + req.get("host") + req.originalUrl);
+      urlObj.searchParams.delete("path");
+      const remainingQuery = urlObj.searchParams.toString();
+      const rebuilt = originalPath + (remainingQuery ? `?${remainingQuery}` : "");
+      // @ts-ignore - mutate for downstream routing only
+      req.url = rebuilt;
+      // @ts-ignore
+      req.path = originalPath;
+    } catch {
+      // no-op
+    }
+  }
+  next();
+});
+
 // Configure session middleware with secure settings
 app.use(
   session({
