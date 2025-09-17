@@ -324,24 +324,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Route 3: Check authentication status (using sessions)
   app.get("/api/auth/spotify/status", (req, res) => {
-    const sessionUserId = req.session.userId;
-    const sessionTokens = req.session.spotifyTokens;
-    const sessionProfile = req.session.userProfile;
+    try {
+      const sessionUserId = req.session.userId;
+      const sessionTokens = req.session.spotifyTokens;
+      const sessionProfile = req.session.userProfile;
 
-    const isAuthenticated =
-      sessionUserId && sessionTokens && sessionTokens.expires_at > Date.now();
+      const isAuthenticated =
+        sessionUserId && sessionTokens && sessionTokens.expires_at > Date.now();
 
-    console.log("🔍 Auth status check (session-based):", {
-      userId: sessionUserId,
-      isAuthenticated,
-      hasSessionTokens: !!sessionTokens,
-    });
+      console.log("🔍 Auth status check (session-based):", {
+        userId: sessionUserId,
+        isAuthenticated,
+        hasSessionTokens: !!sessionTokens,
+      });
 
-    res.json({
-      authenticated: !!isAuthenticated,
-      userId: isAuthenticated ? sessionUserId : undefined,
-      user: isAuthenticated ? sessionProfile : undefined,
-    });
+      res.status(200).json({
+        authenticated: !!isAuthenticated,
+        userId: isAuthenticated ? sessionUserId : undefined,
+        user: isAuthenticated ? sessionProfile : undefined,
+      });
+    } catch (error) {
+      console.error("❌ Error in auth status check:", error);
+      res.status(500).json({
+        error: "Authentication status check failed",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   });
 
   // Route 4: Logout/disconnect (using sessions)
