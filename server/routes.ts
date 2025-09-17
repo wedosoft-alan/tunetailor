@@ -151,6 +151,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Spotify OAuth Routes
   // ===============================
 
+  // Route 0: Simple test endpoint (no session dependency)
+  app.get("/api/test", (req, res) => {
+    console.log("🧪 Test endpoint called");
+    res.status(200).json({
+      success: true,
+      message: "Test endpoint working",
+      timestamp: new Date().toISOString(),
+      environment: process.env.VERCEL ? "vercel" : "local",
+      nodeEnv: process.env.NODE_ENV,
+    });
+  });
+
   // Route 0: Diagnostic endpoint to show current configuration
   app.get("/api/oauth/config", (req, res) => {
     res.json({
@@ -322,64 +334,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Route 3: Check authentication status (using sessions)
+  // Route 3: Check authentication status (simplified version)
   app.get("/api/auth/spotify/status", (req, res) => {
+    console.log("🔍 Auth status endpoint called - simplified version");
+
     try {
-      // 디버깅을 위한 상세 로그
-      console.log("🔍 Full request debug:", {
-        url: req.url,
-        path: req.path,
-        originalUrl: req.originalUrl,
-        headers: {
-          host: req.headers.host,
-          cookie: req.headers.cookie,
-          userAgent: req.headers['user-agent'],
-        },
-        query: req.query,
-        sessionID: req.sessionID,
-        hasSession: !!req.session,
-        env: {
-          NODE_ENV: process.env.NODE_ENV,
-          VERCEL: !!process.env.VERCEL,
-        }
-      });
-
-      const sessionUserId = req.session.userId;
-      const sessionTokens = req.session.spotifyTokens;
-      const sessionProfile = req.session.userProfile;
-
-      const isAuthenticated =
-        sessionUserId && sessionTokens && sessionTokens.expires_at > Date.now();
-
-      console.log("🔍 Auth status check (session-based) - v3:", {
-        userId: sessionUserId,
-        isAuthenticated,
-        hasSessionTokens: !!sessionTokens,
-        timestamp: new Date().toISOString(),
-        sessionData: {
-          userId: !!sessionUserId,
-          tokens: !!sessionTokens,
-          profile: !!sessionProfile,
-        }
-      });
-
+      // 매우 간단한 응답으로 시작
       res.status(200).json({
-        authenticated: !!isAuthenticated,
-        userId: isAuthenticated ? sessionUserId : undefined,
-        user: isAuthenticated ? sessionProfile : undefined,
-        version: "v3", // 버전 추가로 캐시 확인
-        debug: {
-          hasSession: !!req.session,
-          sessionId: req.sessionID,
-          env: process.env.VERCEL ? "vercel" : "local"
-        }
+        authenticated: false,
+        message: "Endpoint working - session check disabled for testing",
+        version: "v4-simplified",
+        timestamp: new Date().toISOString(),
+        environment: process.env.VERCEL ? "vercel" : "local"
       });
     } catch (error) {
-      console.error("❌ Error in auth status check:", error);
+      console.error("❌ Error in simplified auth status check:", error);
       res.status(500).json({
-        error: "Authentication status check failed",
+        error: "Simplified auth status check failed",
         message: error instanceof Error ? error.message : "Unknown error",
-        version: "v3"
+        version: "v4-simplified"
       });
     }
   });
