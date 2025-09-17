@@ -325,6 +325,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Route 3: Check authentication status (using sessions)
   app.get("/api/auth/spotify/status", (req, res) => {
     try {
+      // 디버깅을 위한 상세 로그
+      console.log("🔍 Full request debug:", {
+        url: req.url,
+        path: req.path,
+        originalUrl: req.originalUrl,
+        headers: {
+          host: req.headers.host,
+          cookie: req.headers.cookie,
+          userAgent: req.headers['user-agent'],
+        },
+        query: req.query,
+        sessionID: req.sessionID,
+        hasSession: !!req.session,
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          VERCEL: !!process.env.VERCEL,
+        }
+      });
+
       const sessionUserId = req.session.userId;
       const sessionTokens = req.session.spotifyTokens;
       const sessionProfile = req.session.userProfile;
@@ -332,22 +351,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAuthenticated =
         sessionUserId && sessionTokens && sessionTokens.expires_at > Date.now();
 
-      console.log("🔍 Auth status check (session-based):", {
+      console.log("🔍 Auth status check (session-based) - v3:", {
         userId: sessionUserId,
         isAuthenticated,
         hasSessionTokens: !!sessionTokens,
+        timestamp: new Date().toISOString(),
+        sessionData: {
+          userId: !!sessionUserId,
+          tokens: !!sessionTokens,
+          profile: !!sessionProfile,
+        }
       });
 
       res.status(200).json({
         authenticated: !!isAuthenticated,
         userId: isAuthenticated ? sessionUserId : undefined,
         user: isAuthenticated ? sessionProfile : undefined,
+        version: "v3", // 버전 추가로 캐시 확인
+        debug: {
+          hasSession: !!req.session,
+          sessionId: req.sessionID,
+          env: process.env.VERCEL ? "vercel" : "local"
+        }
       });
     } catch (error) {
       console.error("❌ Error in auth status check:", error);
       res.status(500).json({
         error: "Authentication status check failed",
-        message: error instanceof Error ? error.message : "Unknown error"
+        message: error instanceof Error ? error.message : "Unknown error",
+        version: "v3"
       });
     }
   });
