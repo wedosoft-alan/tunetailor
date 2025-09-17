@@ -334,25 +334,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Route 3: Check authentication status (simplified version)
+  // Route 3: Check authentication status (session-based)
   app.get("/api/auth/spotify/status", (req, res) => {
-    console.log("🔍 Auth status endpoint called - simplified version");
+    console.log("🔍 Auth status endpoint called");
 
     try {
-      // 매우 간단한 응답으로 시작
-      res.status(200).json({
-        authenticated: false,
-        message: "Endpoint working - session check disabled for testing",
-        version: "v4-simplified",
-        timestamp: new Date().toISOString(),
-        environment: process.env.VERCEL ? "vercel" : "local"
-      });
+      if (req.session && req.session.userId && req.session.spotifyTokens) {
+        // Check if token is still valid (not expired)
+        if (req.session.spotifyTokens.expires_at > Date.now()) {
+          console.log("✅ User is authenticated:", {
+            userId: req.session.userId,
+            profile: req.session.userProfile?.display_name,
+          });
+          res.status(200).json({
+            authenticated: true,
+            user: req.session.userProfile,
+          });
+        } else {
+          console.log("⚠️ User session found, but token is expired.");
+          res.status(200).json({
+            authenticated: false,
+            reason: "token_expired",
+          });
+        }
+      } else {
+        console.log("ℹ️ No active user session found.");
+        res.status(200).json({
+          authenticated: false,
+          reason: "no_session",
+        });
+      }
     } catch (error) {
-      console.error("❌ Error in simplified auth status check:", error);
+      console.error("❌ Error in auth status check:", error);
       res.status(500).json({
-        error: "Simplified auth status check failed",
+        error: "Auth status check failed",
         message: error instanceof Error ? error.message : "Unknown error",
-        version: "v4-simplified"
       });
     }
   });
