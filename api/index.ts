@@ -180,7 +180,7 @@ app.get('/auth/spotify/callback', async (req, res) => {
 });
 
 // Auth status endpoint
-app.get('/auth/status', (req, res) => {
+const handleAuthStatus = (req: Request, res: Response) => {
     const sessionId = req.cookies?.spotify_session;
 
     if (!sessionId) {
@@ -202,10 +202,13 @@ app.get('/auth/status', (req, res) => {
         authenticated: true,
         user: session.user
     });
-});
+};
+
+app.get('/auth/status', handleAuthStatus);
+app.get('/auth/spotify/status', handleAuthStatus);
 
 // Get access token endpoint
-app.get('/auth/token', (req, res) => {
+const handleAuthToken = (req: Request, res: Response) => {
     const sessionId = req.cookies?.spotify_session;
 
     if (!sessionId) {
@@ -226,10 +229,13 @@ app.get('/auth/token', (req, res) => {
     res.json({
         access_token: session.access_token
     });
-});
+};
+
+app.get('/auth/token', handleAuthToken);
+app.get('/auth/spotify/token', handleAuthToken);
 
 // Logout endpoint
-app.post('/auth/logout', (req, res) => {
+const handleAuthLogout = (req: Request, res: Response) => {
     const sessionId = req.cookies?.spotify_session;
 
     if (sessionId) {
@@ -239,7 +245,10 @@ app.post('/auth/logout', (req, res) => {
     res.clearCookie('spotify_session');
     res.clearCookie('spotify_auth_state');
     res.json({ success: true });
-});
+};
+
+app.post('/auth/logout', handleAuthLogout);
+app.post('/auth/spotify/logout', handleAuthLogout);
 
 // Health check
 app.get('/api/health', (req, res) => {
